@@ -1,0 +1,511 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+<!DOCTYPE muclient>
+
+<!-- Bank Helper created by Umiven -->
+<muclient>
+<plugin
+   name="UmivenBanker"
+   author="Umiven"
+   id="556d6976656e000000000001"
+   language="Lua"
+   purpose="Bank Tracker"
+   date_written="2022-05-22"
+   date_modified="2022-08-23"
+   save_state="y"
+   requires="5.06"
+   version="1.02"
+   >
+</plugin>
+
+<script>
+<![CDATA[
+-- ********************************************************************
+-- *****                       Bank Tracker                       *****
+-- *****                      For Discworld                       *****
+-- *****                                                          *****
+-- *****  Keeps track of the amount of money in every bank.       *****
+-- *****  To use this plugin, go to each bank and get the         *****
+-- *****  'balance', which will then be stored.                   *****
+-- *****  You can recall the every stored bank and the amount     *****
+-- *****  typing 'bank' or 'banks'. This will give you an         *****
+-- *****  overview of every bank, the amount in it and a total    *****
+-- *****  across all bank accounts.                               *****
+-- *****  As a small aside, you can easily deposit half of your   *****
+-- *****  currently held money. To do so, take out all the money  *****
+-- *****  you want to deposit in the bank and look at your        *****
+-- *****  inventory. Then type 'deposithalf' to deposit half of   *****
+-- *****  all the money you are currently holding (rounded down). *****
+-- ********************************************************************
+
+--#region database
+local banks = {
+	["Bing's First"] = {locations = "Bing's First Bank|branch of Bing's Bank|neat branch of Bing's bank", city = "Ankh-Morpork", streets = "Upper Broadway"},
+	["Lancrastian Farmers' Cooperative"] = {locations = "Lancrastian Farmers' Cooperative Bank", city = "Ankh-Morpork, Lancre, Ohulan Cutash", streets = "The Ridings, Lancre Town square, market"},
+	["First Imperial Bank of the Empire"] = {locations = "branch of the First Imperial Bank of the Empire", city = "Bes Pelargic", streets = "Market Street"},
+	["Klatchian Continental"] = {locations = "Klatchian Continental Bank", city = "Djelibeybi, Ephebe", streets = "Market Street, Logical Lane"},
+	["Genua National"] = {locations = "Genua National Bank", city = "Genua", streets = "Royal Avenue"},
+}
+--#endregion
+
+--#region General functions
+function string.amatch(str, match)
+	if type(str) == "string" then
+		local amount = 0
+		for w in string.gmatch(string.lower(str), string.lower(str)) do
+			amount = amount + 1
+		end
+		return amount
+	end
+end
+
+function IsEmpty(s)
+	if type(s) == "nil" then
+		return true
+	elseif type(s) == "string" then
+		return s == nil or s == ""
+	else
+		return false
+	end
+end
+
+function string.toTable(s, delimiter)
+	local result = {}
+	for match in (s..delimiter):gmatch("(.-)"..delimiter) do
+		table.insert(result, match)
+	end
+	return result
+end
+
+function string.trim(s)
+	return (string.gsub(s, "^%s*(.-)%s*$", "%1"))
+end
+
+function table.print(t)
+	for i = 1, #t, 1 do
+		Note(i .. ": " .. t[i])
+	end
+end
+
+function table.reverse(t)
+	for i = #t - 1, 1, -1 do
+		t[#t] = table.remove(t, i)
+	end
+end
+--#endregion
+
+--#region Bank functions
+function BankBankArrayToString(bankArray)
+	local stringTable = {}
+	for key, value in pairs(bankArray) do
+		table.insert(stringTable, key .. ";" .. value.localAmount .. ";" .. value.amAmount)
+	end
+	return table.concat(stringTable, ":")
+end
+
+function BankCurrentLocationToBank()
+	for key, value in pairs(banks) do
+		if not IsEmpty(string.match(string.lower(value.locations), string.lower(BankGetCurrent()))) then
+			return key
+		end
+	end
+end
+
+function BankDepositHalfMoney()
+	local moneyString = GetVariable("bankPurseContentsHalf")
+	Send("deposit " .. moneyString)
+end
+
+function BankGetBankArray()
+	local bankArray = {}
+	local bankBalancesString = BankGetBankBalances()
+	if not IsEmpty(bankBalancesString) then
+		local bankBalancesTable = string.toTable(bankBalancesString,":")
+		for i = 1, #bankBalancesTable do
+			local bankTable = string.toTable(bankBalancesTable[i],";")
+			bankArray[bankTable[1]] = { localAmount = bankTable[2], amAmount = bankTable[3] }
+		end
+	end
+	return bankArray
+end
+
+function BankGetBankBalances()
+	local result = GetVariable("bankBalances")
+	if IsEmpty(result) then
+		result = ""
+	end
+	return result
+end
+
+function BankGetCurrent()
+	local result = GetVariable("bankCurrent")
+	if IsEmpty(result) then
+		result = ""
+	end
+	return result
+end
+
+function BankGetTotalMoney()
+	local bankArray = BankGetBankArray()
+	local totalMoney = 0
+
+	for key, value in pairs(bankArray) do
+		totalMoney = totalMoney + (string.gsub(value.amAmount, "A%$", "")*1)
+	end
+
+	return totalMoney
+end
+
+function BankLoopThroughBanks()
+	local bankArray = BankGetBankArray()
+	
+	if not IsEmpty(bankArray) then
+		for key, value in pairs(bankArray) do
+			ColourNote("#FF8040", "", key .. ": " .. value.localAmount .. " (".. value.amAmount ..")")
+		end
+	end
+end
+
+function BankPrintAllInfo()
+	BankLoopThroughBanks()
+	ColourNote ("#80FF80", "", "Total: A$" .. BankGetTotalMoney())
+end
+
+function BankSetAmount(name, output, wildcards)
+	local bankArray = BankGetBankArray()
+	local bank = BankCurrentLocationToBank()
+	local localMoney = wildcards[2]
+	local currencyType = CurrencyGetType(localMoney)
+	local lowestDenomination = CurrencyToLowestDenomination(localMoney, currencyType)
+	local wichitBeads = CurrencyToWichitBeads(lowestDenomination, currencyType)
+	local amMoney = WichitBeadsToCurrency(wichitBeads, "AM")
+
+	if bankArray[bank] then
+		bankArray[bank].localAmount = localMoney
+		bankArray[bank].amAmount = amMoney
+	else
+		bankArray[bank] = { localAmount = localMoney, amAmount = amMoney }
+	end
+
+	BankSetBankBalances(BankBankArrayToString(bankArray))
+end
+
+function BankSetBankBalances(bankBalances)
+	SetVariable("bankBalances", bankBalances)
+end
+
+function BankSetCurrent(name, output, wildcards)
+	local currentBank = wildcards[1]
+	SetVariable("bankCurrent", currentBank)
+end
+
+function BankSetPurse(name, output, wildcards)
+	local moneyString = wildcards[1]
+	SetVariable("bankPurseContents", "")
+	SetVariable("bankPurseContentsHalf", "")
+
+	if not (moneyString == "only moths") then
+		moneyString = string.gsub(moneyString, " and ", ", ")
+		while string.find(moneyString, "one") do
+			moneyString = string.gsub(moneyString, "one", "1")
+		end
+		SetVariable("bankPurseContents", moneyString)
+		local moneyTable = string.toTable(moneyString, ", ")
+		for i = 1, #moneyTable, 1 do
+			local newAmount = string.match(moneyTable[i], "%d+")
+			if (newAmount*1 > 1) then
+				moneyTable[i] = string.gsub(moneyTable[i], "%d+", math.floor(newAmount/2))
+			end
+		end
+		SetVariable("bankPurseContentsHalf", table.concat(moneyTable,", "))
+	end
+end
+
+--#endregion
+
+--#region Currency functions
+function CurrencyToAM(name, output, wildcards)
+	local money = wildcards[2]
+	local currencyType = CurrencyGetType(money)
+	local lowestDenomination = CurrencyToLowestDenomination(money, currencyType)
+	local wichitBeads = CurrencyToWichitBeads(lowestDenomination, currencyType)
+
+	Note("in AM: " .. WichitBeadsToCurrency(wichitBeads, "AM"))
+end
+
+function CurrencyGetType(fullMoneyString)
+	if string.find(fullMoneyString, "A%$") or string.find(fullMoneyString, "%dp") then
+		return "AM"
+	elseif string.find(fullMoneyString, "DjToon") then
+		return "DJB"
+	elseif string.find(fullMoneyString, "Gc") or string.find(fullMoneyString, "Gl") or string.find(fullMoneyString, "Gf") or string.find(fullMoneyString, "Gd") then
+		return "GEN"
+	elseif string.find(fullMoneyString, "Lp") or string.find(fullMoneyString, "Ls") or string.find(fullMoneyString, "LC") or string.find(fullMoneyString, "LSov") or string.find(fullMoneyString, "LH") then
+		return "LAN"
+	elseif string.find(fullMoneyString, "%dM") or string.find(fullMoneyString, "%dde") then
+		return "EPH"
+	elseif string.find(fullMoneyString, "Rh") or string.find(fullMoneyString, "%ds") then
+		return "BP"
+	elseif string.find(fullMoneyString, "dr") then
+		return "KLA"
+	end
+end
+
+function CurrencyToLowestDenomination(money, type)
+	local amountString
+	local amount = 0
+
+	if type == "AM" then
+		if string.find(money, "A%$") then
+			amountString = string.gsub(money, "A%$", "")
+			amount = amountString * 100
+		else
+			amount = string.gsub(money, "p", "")
+		end
+	elseif type == "BP" then
+		local rhinu = 0
+		local rhinuString = ""
+		local saveloy = 0
+		local saveloyString = ""
+
+		rhinuString = string.match(money, "%d+Rh")
+		if(not IsEmpty(rhinuString)) then
+			rhinu = string.gsub(rhinuString, "Rh", "")
+		end
+		if not (rhinu == nil or rhinu == "") then
+			amount = (amount + rhinu*120)
+		end
+	
+		saveloyString = string.match(money, "%d+s")
+		if not (saveloyString == nil or saveloyString == "") then
+			saveloy = string.gsub(saveloyString, "s", "")
+		end
+		if not (saveloy == nil or saveloy == "") then
+			amount = amount + saveloy
+		end
+	elseif type == "LAN" then
+		local multiplicationTable = {82944,6912,576,48,4}
+
+		amountString = string.gsub(money, "-", "0")
+		amountString = string.gsub(amountString, "%a+", "")
+		amountString = string.trim(amountString)
+		
+		local farthingsAmount
+		if string.find(money, "./4") then
+			farthingsAmount = string.match(money, "%d/4")
+			farthingsAmount = string.gsub(farthingsAmount, "/4", "")
+			amountString = string.gsub(amountString, "%d/4", "")
+		elseif string.find(money, "./2") then
+			farthingsAmount = string.match(money, "%d/2")
+			farthingsAmount = string.gsub(farthingsAmount, "/2", "")
+			farthingsAmount = farthingsAmount * 2
+			amountString = string.gsub(amountString, "%d/2", "")
+		end
+
+		local amountTable = string.toTable(amountString,"|")
+
+		for i = 1, #amountTable do
+			if IsEmpty(amountTable[i]) then
+				amountTable[i] = 0
+			end
+			amount = amount + (amountTable[i] * multiplicationTable[i])
+		end
+
+		if not (farthingsAmount == nil or farthingsAmount == "") then
+			amount = amount + farthingsAmount
+		end
+	elseif type == "GEN" then
+		amountString = string.gsub(money, "G%a", "")
+		amountString = string.match(amountString, "[%d,?]+")
+		local amountTable = string.toTable(amountString, ",")
+		local multiplicationTable = {1,100,1000,10000}
+
+		table.reverse(amountTable)
+
+		for i = 1, #amountTable, 1 do
+			amount = amount + (amountTable[i] * multiplicationTable[i])
+		end
+	elseif type == "DJB" then
+		amountString = string.gsub(money, "DjToon ", "")
+		amount = amountString * 100
+	elseif type == "EPH" then
+		local amountMina = 0
+		local amountStater = 0
+		local amountDerechmus = 0
+		
+		if string.find(money, "%d+M") then
+			amountMina = string.match(money, "%d+M")
+			amountMina = string.gsub(amountMina, "M", "")
+			amount = amount + (amountMina * 4800)
+		end
+		
+		if string.find(money, "S%d+") then
+			amountStater = string.match(money, "S%d+")
+			amountStater = string.gsub(amountStater, "S", "")
+			amount = amount + (amountStater * 96)
+		end
+
+		if string.find(money, "%d+de") then
+			amountDerechmus = string.match(money, "%d+de")
+			amountDerechmus = string.gsub(amountDerechmus, "de", "")
+			amount = amount + amountDerechmus
+		end
+	elseif type == "KLA" then
+		amountString = string.gsub(money, " dr", "")
+		if string.find(amountString, ",") then
+			amountString = string.gsub(amountString, ",", "")
+			amount = amountString * 1
+		else
+			amount = amountString * 100
+		end
+	end
+	return amount
+end
+
+function CurrencyToWichitBeads(baseDenominationMoney, type)
+	if (type == "AM") or (type == "BP") then
+		return baseDenominationMoney * 4
+	elseif (type == "LAN") or (type == "GEN") then
+		return baseDenominationMoney * 3
+	elseif (type == "DJB") or (type == "EPH") then
+		return baseDenominationMoney * 2
+	elseif type == "KLA" then
+		return baseDenominationMoney * 5
+	end
+end
+
+function WichitBeadsToCurrency(wichitBeads, type)
+	if type == "AM" then
+		return "A$" .. (wichitBeads/4) / 100
+	elseif type == "DJB" then
+		return "DjToon " .. (wichitBeads/2) / 100
+	end
+end
+--#endregion
+]]>
+</script> 
+
+<!--  Triggers  -->
+<triggers>
+	<trigger
+		enabled="y"
+		group="bank"
+		match="(You have|This gives a total of) (.*) in your account( after the withdrawal)?\."
+		name="lblBankSetAmount"
+		regexp="y"
+		script="BankSetAmount"
+		sequence="100"
+	>
+	</trigger>
+	<trigger
+		enabled="y"
+		group="bank"
+		match="\[(Bing\'s First Bank)\]"
+		name="lblBankSetCurrent1"
+		regexp="y"
+		script="BankSetCurrent"
+		sequence="100"
+	>
+	</trigger>
+	<trigger
+		enabled="y"
+		group="bank"
+		match="\[(branch of Bing\'s Bank)\]"
+		name="lblBankSetCurrent2"
+		regexp="y"
+		script="BankSetCurrent"
+		sequence="100"
+	>
+	</trigger>
+	<trigger
+		enabled="y"
+		group="bank"
+		match="\[(neat branch of Bing\'s bank)\]"
+		name="lblBankSetCurrent3"
+		regexp="y"
+		script="BankSetCurrent"
+		sequence="100"
+	>
+	</trigger>
+	<trigger
+		enabled="y"
+		group="bank"
+		match="\[(Lancrastian Farmers\' Cooperative Bank)\]"
+		name="lblBankSetCurrent4"
+		regexp="y"
+		script="BankSetCurrent"
+		sequence="100"
+	>
+	</trigger>
+	<trigger
+		enabled="y"
+		group="bank"
+		match="\[(branch of the First Imperial Bank of the Empire)\]"
+		name="lblBankSetCurrent5"
+		regexp="y"
+		script="BankSetCurrent"
+		sequence="100"
+	>
+	</trigger>
+	<trigger
+		enabled="y"
+		group="bank"
+		match="\[(Klatchian Continental Bank)\]"
+		name="lblBankSetCurrent6"
+		regexp="y"
+		script="BankSetCurrent"
+		sequence="100"
+	>
+	</trigger>
+	<trigger
+		enabled="y"
+		group="bank"
+		script="BankSetCurrent"
+		match="\[(Genua National Bank)\]"
+		name="lblBankSetCurrent7"
+		regexp="y"
+		sequence="100"
+	>
+	</trigger>
+	<trigger
+		enabled="y"
+		group="bank"
+		script="BankSetPurse"
+		match="Your purse contains (.*)\."
+		name="lblBankSetPurse"
+		regexp="y"
+		sequence="100"
+	>
+	</trigger>
+</triggers>
+
+<!--  Aliases  -->
+<aliases>
+	<alias
+		enabled="y"
+		regexp="y"
+		name="lblBankDepositHalfMoney"
+		script="BankDepositHalfMoney"
+		match="^deposithalf$"
+		group="bank"
+		sequence="100"
+		ignore_case="y"
+	>
+	</alias>
+	<alias
+		name="lblBankPrintAllInfo"
+		script="BankPrintAllInfo"
+		match="^banks?$"
+		regexp="y"
+		enabled="y"
+		group="bank"
+		sequence="100"
+		ignore_case="y"
+	>
+	</alias>
+</aliases>
+
+<!--  Timers  -->
+<timers>
+</timers>
+
+</muclient>

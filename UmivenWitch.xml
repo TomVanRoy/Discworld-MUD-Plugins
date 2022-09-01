@@ -1,0 +1,883 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+<!DOCTYPE muclient>
+
+<!-- Witch Helper created by Umiven -->
+<muclient>
+<plugin
+	name="UmivenWitch"
+	author="Umiven"
+	id="556d6976656e000000000003"
+	language="Lua"
+	purpose="Witch Helper"
+	date_written="2022-08-26"
+	date_modified="2022-08-26"
+	save_state="y"
+	requires="5.06"
+	version="1.00"
+>
+</plugin>
+
+<script>
+<![CDATA[
+-- ********************************************************************
+-- *****                      Witch Helper                        *****
+-- *****                      For Discworld                       *****
+-- *****                                                          *****
+-- *****  Various triggers for witch related events such as:      *****
+-- *****  - Bugshield quantity changes                            *****
+-- *****  - Enchantment levels                                    *****
+-- *****  - Delude stages                                         *****
+-- *****  - Fruitbat actions                                      *****
+-- *****                                                          *****
+-- *****  Also includes an interactive version of the fly-to      *****
+-- *****  plugin. To use it, type "flyto" or "flyto <city name>". *****
+-- ********************************************************************
+]]>
+
+--#region General
+function string.addFill(str, max, fill)
+	if type(str) ~= "string" or type(max) ~= "number" or type(fill) ~= "string" then
+		Note("One of the entered variables is of the incorrect type")
+	else
+		local amountToAdd = max - string.len(str)
+		local returnString = str
+		for i = 1, amountToAdd, 1 do
+			returnString = returnString .. fill
+		end
+		return returnString
+	end
+end
+
+function string.addLeadingTrailing(str, max, fill, trailing)
+	if type(str) ~= "string" or type(max) ~= "number" or type(fill) ~= "string" or type(trailing) ~= "boolean" then
+		Note("One of the entered variables is of the incorrect type")
+	else
+		local amountToAdd = max - string.len(str)
+		local returnString = str
+		for i = 1, amountToAdd, 1 do
+			returnString = returnString .. fill
+		end
+		return returnString
+	end
+end
+
+function table.contains(table, match, caseSensitive)
+	if type(table) ~= "table" then
+		
+	end
+	for i = 1, #table, 1 do
+		if string.lower(table[i]) == string.lower(match) then
+			return true
+		end
+	end
+	return false
+end
+
+function table.filter(table,prop,val)
+	local returnTable = {}
+	for key, value in pairs(table) do
+		if string.lower(value[prop]) == string.lower(val) then
+			returnTable[key] = value
+		end
+	end
+	return returnTable
+end
+
+function table.length(t)
+	local total = 0
+	for x in pairs(t) do
+		total = total + 1
+	end
+	return total
+end
+
+function table.print(t)
+	for k,v in pairs(t) do
+		local vType = type(v)
+		if vType == "table" then
+			Note(k)
+			table.print(v)
+		else
+			Note(k .. ": " .. v)
+		end
+	end
+end
+
+function table.unique(t)
+	local result = {}
+	if type(t) == "table" then
+		for i = 1, #t, 1 do
+			if not table.contains(result, t[i]) then
+				table.insert(result, t[i])
+			end
+		end
+	end
+	return result
+end
+
+function table.valueList(t, val)
+	local returnTable = {}
+	if string.lower(val) == "key" then
+		for k, v in pairs(t) do
+			table.insert(returnTable, k)
+		end
+	else
+		for k, v in pairs(t) do
+			table.insert(returnTable, v[val])
+		end
+	end
+
+	
+	return returnTable
+end
+
+function table.valueMaxStringLength(t)
+	local maxStringLength =  0
+	for key, value in pairs(t) do
+		if string.len(value) > maxStringLength then
+			maxStringLength = string.len(value)
+		end
+	end
+	return maxStringLength
+end
+--#endregion
+
+--#region Flyto
+local flytoAreas = {
+	["Ankh-Morpork"] = { order = 1, shortHand = "AM", cities = {"Ankh-Morpork"}},
+	["Counterweight Continent"] = { order = 2, shortHand = "CWC", cities = {"Bes Pelargic"}},
+	["Klatch"] = { order = 3, shortHand = "Kla", cities = {"Ephebe", "Djelibeybi", "Calh-Nhad", "The Chronides farmstead", "The Imtebos farmstead", "The Oasis"}},
+	["Genua"] = { order = 4, shortHand = "Gen", cities = {"Bois", "Genua"}},
+	["The Ramtops"] = { order = 5, shortHand = "Ramtops", cities = {"Bad Ass", "Barbarian Camp", "Brass Neck", "Copperhead Village", "Creel Springs", "Granny Weatherwax's Cottage", "Lancre Town", "Lancre Forest", "Lancre Pool", "Mad Stoat", "Ohulan Cutash", "Razorback", "Slice", "Slippery Hollow", "Temple of the Monks of Cool", "Temple of Soyin the Wandering God"}},
+	["Sto Plains"] = { order = 6, shortHand = "SP", cities = {"Bleak Prospect", "Dinky", "Hillshire", "Holy Wood", "Scrogden", "Sheepridge", "Sto Lat"}},
+	["Uberwald"] = { order = 7, shortHand = "Uber", cities = {"Escrow", "Unnamed Town"}},
+}
+
+local flytoCities = {
+	["Ankh-Morpork"] = { alternativeRegex = {"[A|a][M|m]", "[A|a]nkh.[M|m]orpork"}},
+	["Bes Pelargic"] = { alternativeRegex = {"[B|b][P|p]", "[B|b]es.[P|p]elargic"}},
+	["Ephebe"] = { alternativeRegex = {"[E|e]p.*"}},
+	["Djelibeybi"] = { alternativeRegex = {"[D|d]j.*"}},
+	["Calh-Nhad"] = { alternativeRegex = {"[C|c]alh.Nhad"}},
+	["The Chronides farmstead"] = { alternativeRegex = {".*[F|f]armstead.*", ".*[C|c]hronides.*"}},
+	["The Imtebos farmstead"] = { alternativeRegex = {".*[F|f]armstead.*", ".*[I|i]mtebos.*"}},
+	["The Oasis"] = {},
+	["Bois"] = {},
+	["Genua"] = {},
+	["Bad Ass"] = {},
+	["Barbarian Camp"] = { alternativeRegex = {"[B|b]arbarian.*"}},
+	["Brass Neck"] = {},
+	["Copperhead Village"] = { alternativeRegex = {"[C|c]opperhead.*"}},
+	["Creel Springs"] = { alternativeRegex = {"[C|c]reel.*"}},
+	["Granny Weatherwax's Cottage"] = { alternativeRegex = {".*[W|w]eatherwax.*"}},
+	["Lancre Town"] = { alternativeRegex = {"[L|l]ancre.*"}},
+	["Lancre Forest"] = { alternativeRegex = {"[L|l]ancre.*"}},
+	["Lancre Pool"] = { alternativeRegex = {"[L|l]ancre.*"}},
+	["Mad Stoat"] = { alternativeRegex = {"[L|l]ancre.*"}},
+	["Ohulan Cutash"] = {},
+	["Razorback"] = {},
+	["Slice"] = {},
+	["Slippery Hollow"] = {},
+	["Temple of the Monks of Cool"] = { alternativeRegex = {".*[C|c]ool.*"}},
+	["Temple of Soyin the Wandering God"] = { alternativeRegex = {".*[S|s]oyin.*"}},
+	["Bleak Prospect"] = {},
+	["Dinky"] = {},
+	["Hillshire"] = {},
+	["Holy Wood"] = {},
+	["Scrogden"] = {},
+	["Sheepridge"] = {},
+	["Sto Lat"] = {},
+	["Escrow"] = {},
+	["Unnamed Town"] = { alternativeRegex = {"[U|u]nnamed.*"}},
+}
+
+local flyto = {
+	["althea"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Althea of Pishe"},
+	["arnold"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Arnold Sideways", location = "Elm Street"},
+	["aroh"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Aroh", location = "Thieves' Guild"},
+	["hugh"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Blind Hugh", location = "Western docks"},
+	["bob"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Bob", location = "Usually Bob on the Street of Cunning Artificers, sometimes Old Bob in the Flintwick Building", static = "y", warning = "Sometimes Bob the Second Best Ticket Seller in Slippery hollow"},
+	["carrot"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Captain Carrot", static = "n"},
+	["henry"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Coffin Henry", location = "Elm Street", static = "n"},
+	["solicitor"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "a confused solicitor", location = "alley off Gleam Street"},
+	["nobby"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Corporal Nobbs"},
+	["wa"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Cripple Wa", location = "Sticken Place, can also be Ren Wa in BP"},
+	["dibbler"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Cut-Me-Own-Throat Dibbler", location = "Plaza of Broken Moons, The Cham and Sator Square", static = "n"},
+	["daphne"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Daphne the Leshpian Thespian", location = "Isle of Small Gods, Sator square"},
+	["dogbottler"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Dogbottler", location = "Intersection of Short St. and St. of Small Gods", static = "n"},
+	["dorak"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Dorak Clansinger", location = "Top of Salt Shaker"},
+	["florette"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Florette the bunny rabbit", location = "Temple of Small Gods garden", static = "y"},
+	["ron"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Foul Ole Ron", location = "Elm Street", static = "n"},
+	["francis"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Francis with his ukulele of pain", static = "n"},
+	["watkins"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Gerry Watkins", location = "Dimwell Street"},
+	["gritjaw"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Gritjaw Thighsplitter", location = "Rime Street"},
+	["halen"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Halen", location = "near the Temple of Sandelfon in south-east Ankh-Morpork"},
+	["hoff"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Hoff Buchannon", location = "Plaza of Broken Moons", static = "y"},
+	["iris"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Iris", location = "Thieves' Guild"},
+	["jolene"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Jolene", location = "Wanders a lot"},
+	["haia"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Haia", location = "Thieves' Guild"},
+	["kess"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Kess of Sek", location = "around Street of Small Gods, Attic Bee street", static = "n"},
+	["kodattai"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Kodattai", location = "on a rooftop above Trotters Lane", static = "y", warning = "requires lots of balancing or you'll fall off the building and take lots of damage!"},
+	["bauxite"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Lance-Constable Bauxite"},
+	["louis"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Louis Bingham"},
+	["maple"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Maple Bede", location = "usually on Phedre Road", static = "n"},
+	["scowd"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Maude Scowd", location = "around God's Collar", static = "n"},
+	["maximiliam"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Maximiliam Dimlith", location = "Green Lumpy Bit"},
+	["bradlofrudd"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Mr Bradlofrudd", location = "courtyard of the Assassins' Guild", static = "n"},
+	["glodson"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Mr Glodson"},
+	["lamister"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Mr Lamister", location = "courtyard of the Assassins' Guild", static = "n"},
+	["mericet"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Mr Mericet", location = "courtyard of the Assassins' Guild", static = "n"},
+	["pin"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Mr Pin", static = "n"},
+	["tulip"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Mr Tulip", static = "n"},
+	["Neelie"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Neelie Awkside", location = "Fillgree street, peasants parade and street of alchemists", static = "n"},
+	["wilfred"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Old Wilfred"},
+	["prinscilla"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Prinscilla", location = "grassy paddock behind the stable on King's Down (Horses)", static = "y"},
+	["laggins"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Prodo Laggins", static = "n"},
+	["protester"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "[an] animal rights protester", location = "north end of The Shambles (stationary)", static = "y"},
+	["roffle"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Roffle", location = "Plaza of Broken Moons"},
+	["ronnie"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Ronnie Soak", static = "n"},
+	["sacharissa"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Sacharissa Cripslock"},
+	["salesgolem"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "[a] salesgolem", location = "Dimwell Street, lumber yard", static = "y"},
+	["angua"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Sergeant Angua", static = "n"},
+	["colon"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Sergeant Colon"},
+	["skimp"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Skimp"},
+	["sneed"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Sneed Finkman", location = "Outside the Post Office (usually)", static = "y"},
+	["splatter"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "a splatter", location = "outside All Bar None in Pseudopolis Yard (nighttime only)"},
+	["potter"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "a travelling potter"},
+	["Vy"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Vy of Fish", location = "Around Cockbill Street and the docks"},
+	["wallspur"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Wallspur"},
+	["arthur"] = { area = "Ankh-Morpork", city = "Ankh-Morpork", longName = "Wee Mad Arthur", location = "usually around Gleam Street"},
+	["tomtom"] = { area = "Counterweight Continent", city = "Bes Pelargic", longName = "Tomtom the monkey", location = "By Imperial palace", static = "n"},
+	["lilies"] = { area = "Counterweight Continent", city = "Bes Pelargic", longName = "For Lilies", location = "Hong Fa district", static = "n"},
+	["glod-san"] = { area = "Counterweight Continent", city = "Bes Pelargic", longName = "Glod-San", location = "Imperial Avenue (walks)", static = "n"},
+	["birds"] = { area = "Counterweight Continent", city = "Bes Pelargic", longName = "Free Sitting Birds", location = "Vault on Way of the Dragon"},
+	["willie"] = { area = "Counterweight Continent", city = "Bes Pelargic", longName = "Boy Willie", static = "n"},
+	["dibhala"] = { area = "Counterweight Continent", city = "Bes Pelargic", longName = "Disembowel-Meself-Honourable-Dibhala", location = "usually on Market Street, but can wander into the Snail, so beware!", static = "n"},
+	["goldenleaf"] = { area = "Counterweight Continent", city = "Bes Pelargic", longName = "Goldenleaf", location = "Golden District merchants' marketplace"},
+	["wind"] = { area = "Counterweight Continent", city = "Bes Pelargic", longName = "Happy Lotus Wind", location = "Pearl Path", static = "n"},
+	["tang"] = { area = "Counterweight Continent", city = "Bes Pelargic", longName = "Hugo Tang", location = "Tang Estate"},
+	["kang"] = { area = "Counterweight Continent", city = "Bes Pelargic", longName = "Kang Wu", location = "black market"},
+	["lo"] = { area = "Counterweight Continent", city = "Bes Pelargic", longName = "Lon Fah Lo", static = "n"},
+	["hamish"] = { area = "Counterweight Continent", city = "Bes Pelargic", longName = "Mad Hamish", static = "n"},
+	["information"] = { area = "Counterweight Continent", city = "Bes Pelargic", longName = "Miss Information"},
+	["watcher"] = { area = "Counterweight Continent", city = "Bes Pelargic", longName = "a mosquito watcher", location = "Riverview Walk", static = "y"},
+	["nameless"] = { area = "Counterweight Continent", city = "Bes Pelargic", longName = "Nameless man", warning = "Sometimes wanders into The Snail"},
+	["wan"] = { area = "Counterweight Continent", city = "Bes Pelargic", longName = "No Go Wan", location = "Riverview Walk"},
+	["vincent"] = { area = "Counterweight Continent", city = "Bes Pelargic", longName = "Old Vincent", static = "n"},
+	["quisoda"] = { area = "Counterweight Continent", city = "Bes Pelargic", longName = "Quisoda", location = "Bridge Street", static = "n"},
+	["roses"] = { area = "Counterweight Continent", city = "Bes Pelargic", longName = "Serene Roses", location = "usually the Imperial district", static = "n"},
+	["gai"] = { area = "Counterweight Continent", city = "Bes Pelargic", longName = "Shi Do Gai", static = "n"},
+	["san"] = { area = "Counterweight Continent", city = "Bes Pelargic", longName = "San Shi", location = "Near the Lobster Pot off Tuna Walk (sometimes indoors)", static = "n"},
+	["jewel"] = { area = "Counterweight Continent", city = "Bes Pelargic", longName = "Tri Len Jewel", location = "Imperial District"},
+	["truckle"] = { area = "Counterweight Continent", city = "Bes Pelargic", longName = "Truckle the Uncivil", static = "n"},
+	["pearl"] = { area = "Counterweight Continent", city = "Bes Pelargic", longName = "Won Favourite Pearl", location = "Small park off Hook Street (near the money changer)", static = "y"},
+	["huckster"] = { area = "Counterweight Continent", city = "Bes Pelargic", longName = "Wun Artful Huckster", location = "Tuna Walk", static = "n"},
+	["star"] = { area = "Counterweight Continent", city = "Bes Pelargic", longName = "Wun Gold Star", location = "Golden District merchants' marketplace"},
+	["roger-san"] = { area = "Counterweight Continent", city = "Bes Pelargic", longName = "Honourable Roger-san", location = "Blue Moon Park", static = "y"},
+	["dihbl"] = { area = "Klatch", city = "Calh-Nhad", longName = "SMOC Dihbl", location = "Just inside the gates of Calh-Nhad", static = "y"},
+	["bugger"] = { area = "Klatch", city = "Djelibeybi", longName = "Daft Bugger", location = "Market Street", static = "y"},
+	["antonis"] = { area = "Klatch", city = "Djelibeybi", longName = "First Mate Antonis", location = "Harbour - Deck of the 'Brazen Mermaid'", static = "y"},
+	["fishfryn"] = { area = "Klatch", city = "Djelibeybi", longName = "Gut Fishfryn", location = "Ptrip-Ptrap bridge"},
+	["lap-lip"] = { area = "Klatch", city = "Djelibeybi", longName = "Lap-lip", static = "n"},
+	["lap-top"] = { area = "Klatch", city = "Djelibeybi", longName = "Lip-phon Lap-top", static = "n"},
+	["bohp"] = { area = "Klatch", city = "Djelibeybi", longName = "Mihk-gran-bohp", location = "usually in the market area", static = "n"},
+	["noc"] = { area = "Klatch", city = "Djelibeybi", longName = "Noc-noc-bang (sneaking/hiding)"},
+	["phos"] = { area = "Klatch", city = "Djelibeybi", longName = "Phos-phor", static = "n"},
+	["pkara"] = { area = "Klatch", city = "Djelibeybi", longName = "Pkara Stainmaster"},
+	["ptate"] = { area = "Klatch", city = "Djelibeybi", longName = "Sandy Ptate"},
+	["sle-pingh-beuh-tei"] = { area = "Klatch", city = "Djelibeybi", longName = "Sle-pingh-beuh-tei", location = "Sleepers"},
+	["tag"] = { area = "Klatch", city = "Djelibeybi", longName = "Tag-ahn-ruhn", location = "Garlic Street Junction"},
+	["teh"] = { area = "Klatch", city = "Djelibeybi", longName = "Teh-takk-eht", location = "Usually Temple Street", static = "y"},
+	["yclept"] = { area = "Klatch", city = "Djelibeybi", longName = "Yclept", location = "Pharoah's Park on the Avenue of the Pharoahs", static = "n"},
+	["adelphe"] = { area = "Klatch", city = "Ephebe", longName = "Adelphe", location = "Tuvelpit Road", static = "y"},
+	["anaxabraxas"] = { area = "Klatch", city = "Ephebe", longName = "Anaxabraxas", location = "Dockside market, towel stand", static = "y"},
+	["andrapodokapelos"] = { area = "Klatch", city = "Ephebe", longName = "Andrapodokapelos", location = "Plaza east of southern gardens, misc goods", static = "y"},
+	["bumblebee"] = { area = "Klatch", city = "Ephebe", longName = "Brick Bumblebee", location = "Petulia Avenue", static = "y"},
+	["calleis"] = { area = "Klatch", city = "Ephebe", longName = "Calleis", location = "Dockside market, jewellery stand", static = "y"},
+	["chidder"] = { area = "Klatch", city = "Ephebe", longName = "Chidder", location = "Ephebe Underdocks, mysterious cove", static = "y"},
+	["chyna"] = { area = "Klatch", city = "Ephebe", longName = "Chyna the Wrestler", location = "In the sandy corner in the gardens southeast of the Tyrant's palace", static = "y"},
+	["cynere"] = { area = "Klatch", city = "Ephebe", longName = "Cynere", location = "Dockside market, fish stand", static = "y"},
+	["endos"] = { area = "Klatch", city = "Ephebe", longName = "Endos", location = "Antithesis Lane outside the Boikiro Institute", static = "y"},
+	["eosforos"] = { area = "Klatch", city = "Ephebe", longName = "Eosforos", location = "Ephebe lighthouse plaza, northern end", static = "y"},
+	["euphrosyne"] = { area = "Klatch", city = "Ephebe", longName = "Euphrosyne", location = "The Grove That Is Or Maybe Isn't Bar and Roof Garden", static = "y"},
+	["himaclitus"] = { area = "Klatch", city = "Ephebe", longName = "Himaclitus", location = "Raise, sw off Harbour Market, ne of Market Taverna", static = "y"},
+	["kharites"] = { area = "Klatch", city = "Ephebe", longName = "Kharites", location = "The Grove That Is Or Maybe Isn't Bar and Roof Garden", static = "y"},
+	["klepton"] = { area = "Klatch", city = "Ephebe", longName = "Klepton", location = "Ponder Alley, Dead-end", static = "y"},
+	["lea"] = { area = "Klatch", city = "Ephebe", longName = "Lea", location = "Dockside market, bread stand", static = "y"},
+	["limos"] = { area = "Klatch", city = "Ephebe", longName = "Limos", location = "Dockside market, cheese stand", static = "y"},
+	["makimba"] = { area = "Klatch", city = "Ephebe", longName = "Makimba", location = "Ephebe lighthouse plaza, northern end", static = "y"},
+	["sinoe"] = { area = "Klatch", city = "Ephebe", longName = "Sinoe", location = "Dockside market, fruit and vegetable stand", static = "y"},
+	["souvlakios"] = { area = "Klatch", city = "Ephebe", longName = "Souvlakios", location = "Tuvelpit Road", static = "y"},
+	["talaria"] = { area = "Klatch", city = "Ephebe", longName = "Talaria", location = "Dockside market, custom shoe stall", static = "y"},
+	["telonis"] = { area = "Klatch", city = "Ephebe", longName = "Telonis", location = "Tyrant's Gate", static = "y"},
+	["ulive"] = { area = "Klatch", city = "Ephebe", longName = "Ulive", location = "Harbour Market, center", static = "y"},
+	["zevgatis"] = { area = "Klatch", city = "Ephebe", longName = "Zevgatis", location = "Harbour Market, south west", static = "y"},
+	["adeipho"] = { area = "Klatch", city = "The Chronides farmstead", longName = "Adeipho Chronides", static = "n"},
+	["gus"] = { area = "Klatch", city = "The Chronides farmstead", longName = "Gus Chronides", static = "n"},
+	["djeric"] = { area = "Klatch", city = "The Imtebos farmstead", longName = "Djeric Imtebos", location = "farm yard"},
+	["dhblah"] = { area = "Klatch", city = "The Oasis", longName = "Mr CMOHO Dhblah", static = "n"},
+	["casanunda"] = { area = "Genua", city = "Genua", longName = "Casanunda", location = "Wanders around Genua", static = "n"},
+	["chick"] = { area = "Genua", city = "Genua", longName = "Tfat Chick", location = "Wanders around Genua", static = "n"},
+	["schwitz"] = { area = "Genua", city = "Genua", longName = "Greig Schwitz", location = "Wanders around Genua", static = "n"},
+	["johnny"] = { area = "Genua", city = "Genua", longName = "Johnny the shoeshine boy", location = "Wanders around Genua", static = "n"},
+	["jeef"] = { area = "Genua", city = "Genua", longName = "Jeef Lirwyn", location = "Samedi Crescent", static = "y"},
+	["jimmi"] = { area = "Genua", city = "Genua", longName = "Jimmi", location = "Jimmi's Buffet", static = "y"},
+	["noobie"] = { area = "Genua", city = "Genua", longName = "Noobie", location = "Wanders around Genua", static = "n"},
+	["ange"] = { area = "Genua", city = "Genua", longName = "Comte Laurente Bon Ange", location = "Duelling oaks southwest of Genua city park", static = "y"},
+	["lenhard"] = { area = "Genua", city = "Bois", longName = "Bruk Lenhard", location = "on the pier", static = "y"},
+	["cern"] = { area = "The Ramtops", city = "Bad Ass", longName = "Cern Smith", static = "n"},
+	["gulta"] = { area = "The Ramtops", city = "Bad Ass", longName = "Gulta Smith", static = "n"},
+	["jaims"] = { area = "The Ramtops", city = "Bad Ass", longName = "Jaims Smith", static = "n"},
+	["annie"] = { area = "The Ramtops", city = "Brass Neck", longName = "Annie Spindlewits", location = "At her cottage west of the town proper. Sometimes inside.", static = "n"},
+	["ironbeard"] = { area = "The Ramtops", city = "Copperhead village", longName = "Knar Ironbeard", location = "The southwest corner of the Copperhead village square", static = "y"},
+	["dia"] = { area = "The Ramtops", city = "Creel Springs", longName = "Dia Shale", location = "Outside a smithy in Creel Springs", static = "y"},
+	["greebo"] = { area = "The Ramtops", city = "Granny Weatherwax's cottage", longName = "Greebo", location = "wanders", static = "n"},
+	["pewsey"] = { area = "The Ramtops", city = "Granny Weatherwax's cottage", longName = "Pewsey", location = "wanders", static = "n"},
+	["gytha"] = { area = "The Ramtops", city = "Granny Weatherwax's cottage", longName = "Nanny Ogg", location = "The rimward wall", static = "y"},
+	["burberry"] = { area = "The Ramtops", city = "Lancre Town", longName = "Burberry Carpetsmith", location = "Wandering around the town square", static = "n"},
+	["krowbarr"] = { area = "The Ramtops", city = "Lancre Town", longName = "Crog Krowbarr", location = "Lancre Highland Regiment training yard", static = "y"},
+	["charlie"] = { area = "The Ramtops", city = "Lancre Town", longName = "Unlucky Charlie", location = "Some fields east of Lancre Square", static = "y"},
+	["oak"] = { area = "The Ramtops", city = "Lancre Forest", longName = "The Blasted Oak", location = "a bit northeast of Lancre town, southeast of Mad Stoat, just southwest of the Pishe pool", static = "y"},
+	["agnes"] = { area = "The Ramtops", city = "Mad Stoat", longName = "Agnes", location = "Agnes' cottage. Agnes is sometimes inside", static = "n"},
+	["maggie"] = { area = "The Ramtops", city = "Mad Stoat", longName = "Maggie", location = "Beside a small pond", static = "y"},
+	["bessie"] = { area = "The Ramtops", city = "Ohulan Cutash", longName = "a cow", location = "wanders", static = "n"},
+	["raffy"] = { area = "The Ramtops", city = "Ohulan Cutash", longName = "Raffy the Rook", location = "Intersection of Riverwind Road and Riverview Road, just north of Mill Way", static = "y"},
+	["laced"] = { area = "The Ramtops", city = "Ohulan Cutash", longName = "Miss Pennie Laced", location = "wanders", static = "n"},
+	["barney"] = { area = "The Ramtops", city = "Razorback", longName = "Barney Woodchops", location = "wanders", static = "n"},
+	["muckloe"] = { area = "The Ramtops", city = "Slice", longName = "Goodwife Muckloe", location = "A pigsty (daytime only?)", static = "y"},
+	["graeme"] = { area = "The Ramtops", city = "Slippery Hollow", longName = "Graeme", location = "wanders", static = "n"},
+	["jennifer"] = { area = "The Ramtops", city = "Slippery Hollow", longName = "Jennifer Smythe", location = "wanders", static = "n"},
+	["minstrel"] = { area = "The Ramtops", city = "Slippery Hollow", longName = "wandering minstrel", location = "wanders", static = "n"},
+	["chaz"] = { area = "The Ramtops", city = "Slippery Hollow", longName = "Chaz Derwin", location = "wanders near the common, east of town", static = "n"},
+	["wheaten"] = { area = "The Ramtops", city = "Slippery Hollow", longName = "Wheaten", location = "wanders near the common, east of town", static = "n"},
+	["phillipa"] = { area = "The Ramtops", city = "Slippery Hollow", longName = "Phillipa Pigshotham", location = "wanders near the common, east of town", static = "n"},
+	["boad"] = { area = "The Ramtops", city = "The temple of the Monks of Cool", longName = "Brother Boad", location = "entrance", static = "y"},
+	["bibi"] = { area = "The Ramtops", city = "The temple of the Monks of Cool", longName = "Sister Bi-Bi Effenne", location = "upstairs balcony", static = "y"},
+	["titi"] = { area = "The Ramtops", city = "The temple of the Monks of Cool", longName = "Sister Ti-Ti Effenne", location = "upstairs balcony", static = "y"},
+	["templeguard"] = { area = "The Ramtops", city = "The temple of Soyin the Wandering God", longName = "Temple guardian", location = "entrance", static = "y"},
+	["Cohen"] = { area = "The Ramtops", city = "Barbarian Camp", longName = "Cohen the Barbarian", location = "Winter Camp only"},
+	["Ramkin"] = { area = "The Ramtops", city = "Barbarian Camp", longName = "Feather Ramkin", location = "Summer Camp only"},
+	["Nessie"] = { area = "The Ramtops", city = "Lancre Pool", longName = "Lancre Ness Monster", static = "n"},
+	["grandma"] = { area = "The Sto Plains", city = "Bleak Prospect", longName = "Old Grandma Higginbottom", location = "moving around", static = "n"},
+	["grover"] = { area = "The Sto Plains", city = "Bleak Prospect", longName = "Grover Pennywit", location = "moving around", static = "n"},
+	["bottomley"] = { area = "The Sto Plains", city = "Dinky", longName = "Duke Bottomley", location = "corn fields"},
+	["spigot"] = { area = "The Sto Plains", city = "Dinky", longName = "William Spigot", location = "corn fields"},
+	["wheels"] = { area = "The Sto Plains", city = "Dinky", longName = "Gabby Wheels", location = "corn fields"},
+	["blue"] = { area = "The Sto Plains", city = "Hillshire", longName = "Blue", location = "Outside the Tobacconists", static = "y"},
+	["gaspode"] = { area = "The Sto Plains", city = "Holy Wood", longName = "Gaspode", location = "Wanders between the hill and the main gate of Holy Wood", static = "n"},
+	["laddie"] = { area = "The Sto Plains", city = "Holy Wood", longName = "Laddie", location = "Wanders between the hill and the main gate of Holy Wood", static = "n"},
+	["calvert"] = { area = "The Sto Plains", city = "Scrogden", longName = "Calvert Desric", location = "A pier", static = "y"},
+	["carlton"] = { area = "The Sto Plains", city = "Scrogden", longName = "Carlton Desric", location = "wanders", static = "n"},
+	["hughoc"] = { area = "The Sto Plains", city = "Scrogden", longName = "Hughoc Gatewood", location = "wanders", static = "n"},
+	["idiot"] = { area = "The Sto Plains", city = "Sheepridge", longName = "A village idiot", location = "wanders", static = "n"},
+	["hamesh"] = { area = "The Sto Plains", city = "Sheepridge", longName = "Hamesh", location = "wanders", static = "n"},
+	["lezek"] = { area = "The Sto Plains", city = "Sheepridge", longName = "Lezek", location = "wanders", static = "n"},
+	["branston"] = { area = "The Sto Plains", city = "Sheepridge", longName = "tabby cat", location = "beer garden of the Frog and Firkin Public House", static = "y"},
+	["jack"] = { area = "The Sto Plains", city = "Sto Lat", longName = "Jack Straw", location = "Garlic Grove east of Hill Street", static = "y"},
+	["prudence"] = { area = "The Sto Plains", city = "Sto Lat", longName = "Prudence", location = "Just west of Princess Park", static = "y"},
+	["blithesome"] = { area = "The Sto Plains", city = "Sto Lat", longName = "Mum Blithesome", location = "Mum Blithesome's house, off quiet part of Grave's Hope (sometimes indoors)", static = "n"},
+	["tuffy"] = { area = "Uberwald", city = "Escrow", longName = "Tuffy the Vampire Slayer", location = "wanders", static = "n"},
+	["mouldium"] = { area = "Uberwald", city = "Escrow", longName = "Mouldium Carpetsmith", location = "wanders", static = "n"},
+	["abe"] = { area = "Uberwald", city = "Unnamed Town", longName = "Abe", location = "The graveyard", static = "y"},
+	["arno"] = { area = "Uberwald", city = "Unnamed Town", longName = "Arno", location = "wanders", static = "n"},
+	["jasen"] = { area = "Uberwald", city = "Unnamed Town", longName = "Jasen", location = "wanders", static = "n"},
+}
+
+function FlytoShowNPCs(flytoTable)
+	local shortNameDefault = string.len("Short name")
+	local shortNameMax = table.valueMaxStringLength(table.unique(table.valueList(flytoTable, "key")))
+	local longNameDefault = string.len("Long name")
+	local longNameMax = table.valueMaxStringLength(table.unique(table.valueList(flytoTable, "longName")))
+	local locationNameDefault = string.len("Location")
+	local locationNameMax = table.valueMaxStringLength(table.unique(table.valueList(flytoTable, "location")))
+
+	local replaceShortNameAmount = tostring(shortNameDefault > shortNameMax)
+	local replaceLongNameAmount = tostring(longNameDefault > longNameMax)
+	local replaceLocationNameAmount = tostring(locationNameDefault > locationNameMax)
+
+	if replaceShortNameAmount == "true" then
+		shortNameMax = shortNameDefault
+	end
+	if replaceLongNameAmount == "true" then
+		longNameMax = longNameDefault
+	end
+	if replaceLocationNameAmount == "true" then
+		locationNameMax = locationNameDefault
+	end
+
+	Tell(string.addFill("Long name", longNameMax, " "))
+	Tell(" | ")
+	Tell(string.addFill("Short name", shortNameMax, " "))
+
+	if locationNameMax > 0 then
+		Tell(" | ")
+		Tell("Location")
+	end
+	Note()
+
+	for key, value in pairs(flytoTable) do
+		local area = ""
+		local city = ""
+		local longName = ""
+		local shortName = ""
+		local location = ""
+		local static = ""
+		local warning = ""
+
+		if value.area then area = value.area end
+		if value.city then city = value.city end
+		if value.longName then longName = value.longName end
+		if key then shortName = key end
+		if value.location then location = value.location end
+		if value.static then static = value.static end
+		if value.warning then warning = value.warning end
+
+		Tell(Hyperlink ("\nfly to " .. shortName .. " on broom", longName, "Fly to " .. longName, "#FF8C00", "black", 0, true))
+		Tell(string.addFill("", longNameMax - string.len(longName), " "))
+		Tell(" | ")
+
+		Tell(Hyperlink ("\nfly to " .. shortName .. " on broom", shortName, "Fly to " .. longName, "#FF8C00", "black", 0, true))
+		Tell(string.addFill("", shortNameMax - string.len(shortName), " "))
+
+		if location ~= "" then
+			Tell(" | ")
+			Tell(location)
+			Tell(string.addFill("", locationNameMax - string.len(location), " "))
+		end
+		Note("")
+	end
+end
+
+function FlytoCity(name, output, wildcards)
+	local cityName = wildcards[1]
+	local cityNameTable = table.unique(table.valueList(flyto, "city"))
+
+	if table.contains(cityNameTable, cityName) then
+		FlytoShowInfoByCity(cityName)
+		return
+	else
+		for cityKey, cityValue in pairs(flytoCities) do
+			if type(cityValue.alternativeRegex) ~= "nil" then
+				for index, value in ipairs(cityValue.alternativeRegex) do
+					if type(string.match(cityName, value)) == "string" then
+						FlytoShowInfoByCity(cityKey)
+						return
+					end
+				end
+			end
+		end
+	end
+	Note("Proviced city name is not recognized")
+end
+
+function FlytoShowInfoByCity(city)
+	ColourNote("yellow", "", city)
+	local cityTable =  table.filter(flyto,"city",city)
+	FlytoShowNPCs(cityTable)
+end
+
+function FlytoShow()
+	local areaTable = table.unique(table.valueList(flyto, "area"))
+	local areaTableMax = table.valueMaxStringLength(areaTable)
+	local cityTableMax = table.valueMaxStringLength(table.unique(table.valueList(flyto, "city")))
+
+	for i = 1, table.length(flytoAreas), 1 do
+		for areaKey, areaValue in pairs(flytoAreas) do
+			if i == areaValue.order then
+				Tell(string.addLeadingTrailing(areaKey, areaTableMax, " ", true))
+				Tell("  ")
+
+				local cityTable = areaValue.cities
+				local cityRowLength = areaTableMax + 2
+
+				for cityIndex, cityValue in ipairs(cityTable) do
+					cityRowLength = cityRowLength + string.len(cityValue)
+					if (cityRowLength > 70) then
+						cityRowLength = areaTableMax + 2
+						Note("")
+						Tell(string.addLeadingTrailing("", cityRowLength, " ", true))
+					end
+					Tell(Hyperlink ("\nflyto " .. cityValue, cityValue, "Get list of flyable NPCs in " .. cityValue, "#FF8C00", "black", 0, true))
+					if cityIndex ~= #cityTable then
+						Tell(", ")
+					end
+				end
+				Note("")
+			end
+		end
+	end
+end
+--#endregion
+</script>
+
+<!--  Triggers  -->
+<triggers>
+	<!--  Bugshield Triggers  -->
+	<trigger
+		enabled="y"
+		keep_evaluating="y"
+		match="As the bugs around you fall, you realise * surrounded by a cloud of *."
+		group="bugshield"
+		custom_colour="17"
+		other_text_colour="#FF5200"
+		sequence="100"
+	>
+	</trigger>
+	<trigger
+		enabled="y"
+		keep_evaluating="y"
+		match="As the bugs around you fall, you realise * surrounded by a handful of *."
+		group="bugshield"
+		custom_colour="17"
+		other_text_colour="#FF7B00"
+		sequence="100"
+	>
+	</trigger>
+	<trigger
+		enabled="y"
+		keep_evaluating="y"
+		match="As the bugs around you fall, you realise * surrounded by a large swarm of *."
+		group="bugshield"
+		custom_colour="17"
+		other_text_colour="#FFC000"
+		sequence="100"
+	>
+	</trigger>
+	<trigger
+		enabled="y"
+		keep_evaluating="y"
+		match="As the bugs around you fall, you realise * surrounded by a small swarm of *."
+		group="bugshield"
+		custom_colour="17"
+		other_text_colour="#FF9F00"
+		sequence="100"
+	>
+	</trigger>
+	<trigger
+		enabled="y"
+		keep_evaluating="y"
+		match="As the bugs around you fall, you realise * surrounded by a vast swarm of *."
+		group="bugshield"
+		custom_colour="17"
+		other_text_colour="#FFE000"
+		sequence="100"
+	>
+	</trigger>
+	<trigger
+		enabled="y"
+		keep_evaluating="y"
+		match="The * surrounding you scatter in different directions and fly off."
+		group="bugshield"
+		custom_colour="17"
+		other_text_colour="red"
+		sequence="100"
+	>
+	</trigger>
+	<trigger
+		enabled="y"
+		keep_evaluating="y"
+		match="The last of the * surrounding you crash to the ground."
+		group="bugshield"
+		custom_colour="17"
+		other_text_colour="red"
+		sequence="100"
+	>
+	</trigger>
+	<!--  Deluding Triggers  -->
+	<trigger
+		enabled="y"
+		keep_evaluating="y"
+		make_bold="y"
+		match="* shudders suddenly and sharply.  It flashes an intense octarine for just a moment and the shuddering subsides."
+		group="deluding_stages"
+		custom_colour="17"
+		other_text_colour="lime"
+		sequence="100"
+	>
+	</trigger>
+	<trigger
+		enabled="y"
+		keep_evaluating="y"
+		match="The octarine shadow around * deepens."
+		group="deluding_stages"
+		custom_colour="17"
+		other_text_colour="lime"
+		sequence="100"
+	>
+	</trigger>
+	<trigger
+		enabled="y"
+		keep_evaluating="y"
+		match="The octarine shadow around * fades a little bit."
+		group="deluding_stages"
+		custom_colour="17"
+		other_text_colour="red"
+		sequence="100"
+	>
+	</trigger>
+	<trigger
+		enabled="y"
+		keep_evaluating="y"
+		match="It has a faint octarine shadow about it that disappears if you look at it squarely."
+		group="deluding_stages"
+		custom_colour="17"
+		other_text_colour="#254C00"
+		send_to="12"
+		sequence="100"
+	>
+		<send>Tell("Delude stage 1/5")</send>
+	</trigger>
+	<trigger
+		enabled="y"
+		keep_evaluating="y"
+		match="It has a faint octarine shadow about it."
+		group="deluding_stages"
+		custom_colour="17"
+		other_text_colour="#3E7E00"
+		send_to="12"
+		sequence="100"
+	>
+		<send>Tell("Delude stage 2/5")</send>
+	</trigger>
+	<trigger
+		enabled="y"
+		keep_evaluating="y"
+		match="It has an octarine shadow about it that flickers occasionally out of the corner of your eye."
+		group="deluding_stages"
+		custom_colour="17"
+		other_text_colour="#4A9700"
+		send_to="12"
+		sequence="100"
+	>
+		<send>Tell ("Delude stage 3/5")</send>
+	</trigger>
+	<trigger
+		enabled="y"
+		keep_evaluating="y"
+		match="It has a flickering octarine shadow about it."
+		group="deluding_stages"
+		custom_colour="17"
+		other_text_colour="#63CA00"
+		send_to="12"
+		sequence="100"
+	>
+		<send>Tell ("Delude stage 4/5")</send>
+	</trigger>
+	<trigger
+		enabled="y"
+		keep_evaluating="y"
+		match="It has a flickering octarine haze about it."
+		group="deluding_stages"
+		custom_colour="17"
+		other_text_colour="lawngreen"
+		send_to="12"
+		sequence="100"
+	>
+		<send>Tell ("Delude stage 5/5; It can finish at any time now.")</send>
+	</trigger>
+	<!--  Enchantment Triggers  -->
+	<trigger
+		enabled="y"
+		regexp="y"
+		keep_evaluating="y"
+		match=".*occasionally pulse(s)? with octarine light.*"
+		group="enchantment_levels"
+		custom_colour="17"
+		other_text_colour="blue"
+		send_to="12"
+		sequence="100"
+	>
+		<send>Tell ("Level 1 (1-10%)")</send>
+	</trigger>
+	<trigger
+		enabled="y"
+		regexp="y"
+		keep_evaluating="y"
+		match=".*emit(s)? a slight octarine glow.*"
+		group="enchantment_levels"
+		custom_colour="17"
+		other_text_colour="#0077FF"
+		send_to="12"
+		sequence="100"
+	>
+		<send>Tell ("Level 2 (11-20%)")</send>
+	</trigger>
+	<trigger
+		enabled="y"
+		regexp="y"
+		keep_evaluating="y"
+		match=".*It softly pulses in dull octarine shades.*"
+		group="enchantment_levels"
+		custom_colour="17"
+		other_text_colour="#00ACFF"
+		send_to="12"
+		sequence="100"
+	>
+		<send>Tell ("Level 3 (21-30%)")</send>
+	</trigger>
+	<trigger
+		enabled="y"
+		regexp="y"
+		keep_evaluating="y"
+		match=".*give(s)? off a steady but dull octarine glow.*"
+		group="enchantment_levels"
+		custom_colour="17"
+		other_text_colour="#00D9FF"
+		send_to="12"
+		sequence="100"
+	>
+		<send>Tell ("Level 4 (31-40%)")</send>
+	</trigger>
+	<trigger
+		enabled="y"
+		regexp="y"
+		keep_evaluating="y"
+		match=".*give(s)? off a steady octarine glow.*"
+		group="enchantment_levels"
+		custom_colour="17"
+		other_text_colour="cyan"
+		send_to="12"
+		sequence="100"
+	>
+		<send>Tell ("Level 5 (41-50%)")</send>
+	</trigger>
+	<trigger
+		enabled="y"
+		regexp="y"
+		keep_evaluating="y"
+		match=".*glow(s)? an intense octarine.*"
+		group="enchantment_levels"
+		custom_colour="17"
+		other_text_colour="#00FFE4"
+		send_to="12"
+		sequence="100"
+	>
+		<send>Tell ("Level 6 (51-60%)")</send>
+	</trigger>
+	<trigger
+		enabled="y"
+		regexp="y"
+		keep_evaluating="y"
+		match=".*emit(s)? a bright octarine colour.*"
+		group="enchantment_levels"
+		custom_colour="17"
+		other_text_colour="#00FFB7"
+		send_to="12"
+		sequence="100"
+	>
+		<send>Tell ("Level 7 (61-70%)")</send>
+	</trigger>
+	<trigger
+		enabled="y"
+		regexp="y"
+		keep_evaluating="y"
+		match=".*brightly pulse(s)? octarine.*"
+		group="enchantment_levels"
+		custom_colour="17"
+		other_text_colour="#00FF79"
+		send_to="12"
+		sequence="100"
+	>
+		<send>Tell ("Level 8 (71-80%)")</send>
+	</trigger>
+	<trigger
+		enabled="y"
+		regexp="y"
+		keep_evaluating="y"
+		match=".*glow(s)? brilliant octarine shades.*"
+		group="enchantment_levels"
+		custom_colour="17"
+		other_text_colour="#00FF3C"
+		send_to="12"
+		sequence="100"
+	>
+		<send>Tell ("Level 9 (81-90%)")</send>
+	</trigger>
+	<trigger
+		enabled="y"
+		regexp="y"
+		keep_evaluating="y"
+		match=".*radiate(s)? pure octarine brilliance.*"
+		group="enchantment_levels"
+		custom_colour="17"
+		other_text_colour="lime"
+		send_to="12"
+		sequence="100"
+	>
+		<send>Tell ("Level 10 (91-100%)")</send>
+	</trigger>
+	<!-- Fruitbat actions -->
+	<trigger
+		enabled="y"
+		regexp="y"
+		keep_evaluating="y"
+		match=".* the giant fruitbat flies away sadly\."
+		group="enchantment_levels"
+		custom_colour="4"
+		sequence="100"
+	>
+	</trigger>
+	<trigger
+		enabled="y"
+		regexp="y"
+		keep_evaluating="y"
+		custom_colour="4"
+		match=".* the giant fruitbat (stares at you anxiously|nibbles on (his|her) wing hungrily|looks a bit peckish)\."
+		group="fruitbat"
+		sequence="100"
+	>
+	</trigger>
+	<!-- Mocks -->
+	<trigger
+		enabled="y"
+		regexp="y"
+		keep_evaluating="y"
+		custom_colour="17"
+		group="mocking"
+		match="^(.+) is unaffected by your mockery\.$"
+		sequence="100"
+		other_text_colour="crimson"
+	>
+	</trigger>
+	<trigger
+		enabled="y"
+		regexp="y"
+		keep_evaluating="y"
+		custom_colour="2"
+		match="^(.+) looks? determined to try harder\.$"
+		group="mocking"
+		sequence="100"
+	>
+	</trigger>
+</triggers>
+
+<!--  Aliases  -->
+<aliases>
+	<!-- Flyto Aliases -->
+	<alias
+		enabled="y"
+		ignore_case="y"
+		regexp="y"
+		match="^flyto( list)?$"
+		group="Fly-To"
+		script="FlytoShow"
+		sequence="100"
+	>
+	</alias>
+	<alias
+		enabled="y"
+		ignore_case="y"
+		regexp="y"
+		match="^flyto (.+)$"
+		group="Fly-To"
+		script="FlytoCity"
+		sequence="100"
+	>
+	</alias>
+</aliases>
+
+<!--  Timers  -->
+<timers>
+</timers>
+
+</muclient>
