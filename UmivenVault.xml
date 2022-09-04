@@ -37,15 +37,100 @@
 -- *****  vaults.                                                 *****
 -- ********************************************************************
 
+require 'json'
+
 --#region database
-local vaults = {
-	["Nella's vault"] = {order = 1, city = "Ankh-Morpork", location = "Barbican Plaza", cost = "30p", container = "large wooden drawer"},
-	["opulent office"] = {order = 2, city = "Ankh-Morpork", location = "The Ridings", cost = "30p", container = "cubby hole"},
-	["small garden"] = {order = 3, city = "Bes Pelargic", location = "Way of the Dragon", cost = "50s", container = "clean nest"},
-	["Thella's vault"] = {order = 4, city = "Djelibeybi", location = "Scarab Walk", cost = "DjToon 0.50", container = "drawer"},
-	["cool, dry basement"] = {order = 5, city = "Ephebe", location = "Logical Lane", cost = "50de", container = "octiron tesseract"},
-	["safety deposit waiting room"] = {order = 6, city = "Genua", location = "Royal Avenue", cost = "66Gc", container = "steel locker"},
-	["office in Ohulan-Cutash"] = {order = 7, city = "Ohulan Cutash", location = "Dock Street", cost = "Lp 10", container = "cubby hole"},
+local vaultsInfo = {
+	["Nella's vault"] = {
+		order = 1, 
+		city = "Ankh-Morpork", 
+		location = "Barbican Plaza", 
+		cost = "30p", 
+		container = "large wooden drawer", 
+		containerDescription = "This is a large drawer made of dark brown wood.  It has a rectangular frame.  The wood looks old and used, but the handles that operate the drawer's double doors are polished - or well used."
+	},
+	["opulent office"] = {
+		order = 2, 
+		city = "Ankh-Morpork", 
+		location = "The Ridings", 
+		cost = "30p", 
+		container = "cubby hole", 
+		containerDescription = "The cubby hole is just a cube of empty space in the stone of the wall behind one of the doors."
+	},
+	["small garden"] = {
+		order = 3,
+		city = "Bes Pelargic",
+		location = "Way of the Dragon",
+		cost = "50s",
+		container = "clean nest",
+		containerDescription = "The nests appear to be deep enough to store things in."
+	},
+	["Thella's vault"] = {
+		order = 4,
+		city = "Djelibeybi", 
+		location = "Scarab Walk", 
+		cost = "DjToon 0.50", 
+		container = "drawer", 
+		containerDescription = "The single open drawer is sticking straight out of the wall like...  well, like a drawer sticking straight out of the wall.  It is in excellent condition."
+	},
+	["cool, dry basement"] = {
+		order = 5, 
+		city = "Ephebe", 
+		location = "Logical Lane", 
+		cost = "50de", 
+		container = "octiron tesseract", 
+		containerDescription = "This floating, four-dimensional cuboid appears to have been fixed in place in the very centre of the room.  It would be able to keep a large number of objects safe for their owner, although exactly where they are stored is uncertain.  Maybe that's the point."
+	},
+	["safety deposit waiting room"] = {
+		order = 6, 
+		city = "Genua", 
+		location = "Royal Avenue", 
+		cost = "66Gc", 
+		container = "steel locker", 
+		containerDescription = "A steel-lined hollow in the stone wall, with a sturdy door."
+	},
+	["office in Ohulan-Cutash"] = {
+		order = 7, 
+		city = "Ohulan Cutash", 
+		location = "Dock Street", 
+		cost = "Lp 10", 
+		container = "cubby hole", 
+		containerDescription = "The cubby hole is just a cube of empty space in the stone of the wall behind one of the doors."
+	},
+}
+local vaultFullStates = {
+	["contains"] = {
+		percentage = "5",
+		hexColour = "#00FFFF",
+	},
+	["almost empty except for"] = {
+		percentage = "10",
+		hexColour = "#24DAFF",
+	},
+	["about one-quarter full with"] = {
+		percentage = "25",
+		hexColour = "#48B6FF",
+	},
+	["about half full with"] = {
+		percentage = "50",
+		hexColour = "#6D91FF",
+	},
+	["about three-quarters full with"] = {
+		percentage = "75",
+		hexColour = "#916DFF",
+	},
+	["almost full with"] = {
+		percentage = "90",
+		hexColour = "#B648FF",
+	},
+	["completely full with"] = {
+		percentage = "100",
+		hexColour = "#DA24FF",
+	},
+	["over-full with"] = {
+		percentage = "110",
+		hexColour = "#FF00FF",
+	},
 }
 local itemsEndingInES = {
 	"breezes",
@@ -788,12 +873,46 @@ local numberWords = {
 	["seven thousand"] = 7000,
 	["eight thousand"] = 8000,
 	["nine thousand"] = 9000,
+	["many"] = 20,
 }
 --#endregion
 
 --#region General functions
-function string.isEmpty(s)
-	return s == nil or s == ""
+function string.addLeadingTrailing(str, max, fill, trailing)
+	if type(str) ~= "string" or type(max) ~= "number" or type(fill) ~= "string" then
+		Note("One of the entered variables is of the incorrect type")
+	else
+		local trail = false
+		if trailing then
+			trail = trailing
+		end
+
+		local amountToAdd = max - string.len(str)
+		local returnString = str
+		if trailing then
+			for i = 1, amountToAdd, 1 do
+				returnString = returnString .. fill
+			end
+		else
+			for i = 1, amountToAdd, 1 do
+				returnString = fill .. returnString
+			end
+		end
+		return returnString
+	end
+end
+
+function string.replaceLast(originalString, matchString, replaceString)
+	if type(originalString) == "string" and type(matchString) == "string" and type(replaceString) then
+		local searchString = string.reverse(matchString)
+		local stringReversed = string.reverse(originalString)
+		local stringIndex = string.find(stringReversed, searchString)
+		local editedReveresString = string.sub(stringReversed, 0, stringIndex) .. replaceString .. string.sub(stringReversed, stringIndex + string.len(searchString))
+		return string.reverse(editedReveresString)
+	else
+		ColourNote("red", "", "string.replaceLast error: one or more of the inputs were not of type string.")
+		return originalString
+	end
 end
 
 function string.toTable(s, delimiter)
@@ -802,23 +921,28 @@ function string.toTable(s, delimiter)
 		for match in (s..delimiter):gmatch("(.-)"..delimiter) do
 			table.insert(result, match)
 		end
+	else
+		ColourNote("red", "", "string.toTable error: one or more of the inputs were not of type string.")
 	end
 	return result
 end
 
-function string.replaceLast(originalString, matchString, replaceString)
-	local searchString = string.reverse(matchString)
-	local stringReversed = string.reverse(originalString)
-	local stringIndex = string.find(stringReversed, searchString)
-	local editedReveresString = string.sub(stringReversed, 0, stringIndex) .. replaceString .. string.sub(stringReversed, stringIndex + string.len(searchString))
-	return string.reverse(editedReveresString)
-end
-
 function string.trim(s)
 	if type(s) == "string" then
-		return (string.gsub(s, "^%s*(.-)%s*$", "%1"))
+		return string.gsub(s, "^%s*(.-)%s*$", "%1")
+	else
+		ColourNote("red", "", "string.trim error: input was not of type string.")
 	end
 	return s
+end
+
+function table.contains(t, match)
+	for i = 1, #t, 1 do
+		if t[i] == match then
+			return true
+		end
+	end
+	return false
 end
 
 function table.filter(table,prop,val)
@@ -829,15 +953,6 @@ function table.filter(table,prop,val)
 		end
 	end
 	return returnTable
-end
-
-function table.contains(t, match)
-	for i = 1, #t, 1 do
-		if t[i] == match then
-			return true
-		end
-	end
-	return false
 end
 
 function table.isEmpty(t)
@@ -858,239 +973,469 @@ function table.length(t)
 end
 
 function table.print(t)
-	for k,v in pairs(t) do
-		local vType = type(v)
-		if vType == "table" then
-			Note(k)
-			table.print(v)
-		else
-			ColourTell("#0080FF", "", k .. ": ")
-			ColourTell("#7DE800", "", v)
-			Note("")
+	if type(t) == "table" then
+		
+		for k,v in pairs(t) do
+			local vType = type(v)
+			if vType == "table" then
+				Note(k)
+				table.print(v)
+			else
+				ColourTell("#0080FF", "", k .. ": ")
+				ColourTell("#7DE800", "", v)
+				Note("")
+			end
 		end
+	else
+		ColourNote("red", "", "table.print error: input is not of type table.")
 	end
 end
 
-function table.unique(t)
-	local result = {}
-	for i = 1, #t, 1 do
-		if not table.contains(result, t[i]) then
-			table.insert(result, t[i])
+function table.valueMaxStringLength(t)
+	local maxStringLength =  0
+	for key, value in pairs(t) do
+		if string.len(value) > maxStringLength then
+			maxStringLength = string.len(value)
 		end
 	end
-	return result
+	return maxStringLength
 end
 --#endregion
 
 --#region Vault functions
-function VaultConvertContentsTableToArray(table)
-	local result = {}
-	for i = 1, #table, 1 do
-		local contentString = string.toTable(table[i],"*")
-		result[contentString[1]] = contentString[2]
+function VaultConvertItemNamePluralToSingle(s)
+	if type(s) == "string" and s ~= "" then
+		local result = s or ""
+
+		result = string.gsub(result, "pairs of", "pair of")
+		result = string.gsub(result, "chunks", "chunk")
+		result = string.gsub(result, "sides", "side")
+		result = string.gsub(result, "knives", "knife")
+		result = string.gsub(result, "pirates'", "pirate's")
+
+		if not string.find(result, "pair of") then
+			local lastWord = result
+			if string.find(result, " ") then
+				local fooTable = string.toTable(result, " ")
+				lastWord = fooTable[#fooTable]
+			end
+			local isSingularWord = false
+			local singularWordEndsInE = false
+			local removeES = false
+			local removeS = false
+
+			-- plural word (ending in s or es) is actually a singular word
+			if (string.sub(lastWord, string.len(lastWord)-1) == "es") and (isSingularWord == false) then
+				for i = 1, #itemsEndingInES, 1 do
+					if itemsEndingInES[i] == lastWord then
+						isSingularWord = true
+						i = #itemsEndingInES
+					end
+				end
+			end
+			if (string.sub(lastWord, string.len(lastWord)) == "s") and (isSingularWord == false) then
+				for i = 1, #itemsEndingInS, 1 do
+					if itemsEndingInS[i] == lastWord then
+						isSingularWord = true
+						i = #itemsEndingInS
+					end
+				end
+			end
+
+			-- Is singular word ending with e?
+			if (string.sub(lastWord, string.len(lastWord)-1) == "es") and (isSingularWord == false) then
+				local lastWordEndingInE = string.sub(lastWord, 0, string.len(lastWord)-1)
+				for i = 1, #itemsEndingInE, 1 do
+					if itemsEndingInE[i] == lastWordEndingInE then
+						singularWordEndsInE = true
+						i = #itemsEndingInE
+					end
+				end
+			end
+
+			if (string.sub(lastWord, string.len(lastWord)-1) == "es") and (isSingularWord == false) and (singularWordEndsInE == false) then
+				removeES = true
+			end
+
+			if (string.sub(lastWord, string.len(lastWord)) == "s") and (isSingularWord == false) and (singularWordEndsInE == false) and (removeES == false) then
+				removeS = true
+			end
+
+			if isSingularWord then
+				result = result
+			elseif singularWordEndsInE then
+				result = string.sub(result, 0, string.len(result)-1)
+			elseif removeES then
+				result = string.sub(result, 0, string.len(result)-2)
+			elseif removeS then
+				result = string.sub(result, 0, string.len(result)-1)
+			end
+		end
+		return result
 	end
---	table.print(result)
-	return result
+	return s
 end
 
 function VaultConvertContentStringToArray(s)
-	s = ", " .. s
-	if string.match(s, " and ") then
-		s = string.replaceLast(s, " and ", ", ")
-	end
 
-	-- Find unique Items with capital letters and quantify them
-	while s.find(s, ", %u") do
-		local matchIndex = string.find(s, ", %u")
-		s = string.sub(s, 1, matchIndex) .. " a" .. string.sub(s, matchIndex+1, string.len(s))
-	end
-
-	-- quantify non-numeric quantifiers
-	s = string.gsub(s, ", many ", ";, 20*")
-	s = string.gsub(s, ", some ", ";, 1*")
-	s = string.gsub(s, ", the ", ";, 1*")
-	s = string.gsub(s, ", an ", ";, 1*")
-	s = string.gsub(s, ", a ", ";, 1*")
-
-	-- prepare string to be split
-	for key, value in pairs(numberWords) do
-		s = string.gsub(s, ", " .. key .. " ", ";, " .. value .. "*")
-	end
-
-	-- unprepare items with a comma
-	for index, value in ipairs(itemsWithComma) do
-		local seatchString = string.gsub(value, ", ", ";, ")
-		s = string.gsub(s, seatchString, value)
-	end
-
-	s = string.gsub(s, ";, ", "", 1)
-	local contentTable = string.toTable(s, ";,")
-	local contentArray = {}
-
-	for i = 1, #contentTable, 1 do
-		contentTable[i] = string.trim(contentTable[i])
-		local fooTable = string.toTable(contentTable[i],"*")
-		local singleItem = via1qlazjpn7hexysgk8p868qhhlljnkcxzyycxl9h8(fooTable[2])
-		contentArray[singleItem] = fooTable[1]
-	end
-
-	return contentArray
-end
-
-function via1qlazjpn7hexysgk8p868qhhlljnkcxzyycxl9h8(s)
-	local result = s
-
-	result = result:gsub("pairs of", "pair of")
-	result = result:gsub("chunks", "chunk")
-	result = result:gsub("sides", "side")
-	result = result:gsub("knives", "knife")
-	result = result:gsub("pirates'", "pirate's")
-
-	if not string.find(result, "pair of") then
-		local fooTable = string.toTable(result, " ")
-		local lastWord = fooTable[#fooTable]
-		local isSingularWord = false
-		local singularWordEndsInE = false
-		local removeES = false
-		local removeS = false
-
-		-- plural word (ending in s or es) is actually a singular word
-		if (string.sub(lastWord, string.len(lastWord)-1) == "es") and (isSingularWord == false) then
-			for i = 1, #itemsEndingInES, 1 do
-				if itemsEndingInES[i] == lastWord then
-					isSingularWord = true
-					i = #itemsEndingInES
-				end
-			end
-		end
-		if (string.sub(lastWord, string.len(lastWord)) == "s") and (isSingularWord == false) then
-			for i = 1, #itemsEndingInS, 1 do
-				if itemsEndingInS[i] == lastWord then
-					isSingularWord = true
-					i = #itemsEndingInS
-				end
-			end
+	if type(s) == "string" and s ~= "" then
+		s = ", " .. s
+		if string.match(s, " and ") then
+			s = string.replaceLast(s, " and ", ", ")
 		end
 
-		-- Is singular word ending with e?
-		if (string.sub(lastWord, string.len(lastWord)-1) == "es") and (isSingularWord == false) then
-			local lastWordEndingInE = string.sub(lastWord, 0, string.len(lastWord)-1)
-			for i = 1, #itemsEndingInE, 1 do
-				if itemsEndingInE[i] == lastWordEndingInE then
-					singularWordEndsInE = true
-					i = #itemsEndingInE
-				end
-			end
+		-- Find unique Items with capital letters and quantify them
+		while s.find(s, ", %u") do
+			local matchIndex = string.find(s, ", %u")
+			s = string.sub(s, 1, matchIndex) .. " a" .. string.sub(s, matchIndex+1, string.len(s))
 		end
 
-		if (string.sub(lastWord, string.len(lastWord)-1) == "es") and (isSingularWord == false) and (singularWordEndsInE == false) then
-			removeES = true
+		-- quantify non-numeric quantifiers
+		s = string.gsub(s, ", some ", ";, 1*")
+		s = string.gsub(s, ", the ", ";, 1*")
+		s = string.gsub(s, ", an ", ";, 1*")
+		s = string.gsub(s, ", a ", ";, 1*")
+		s = string.gsub(s, ", many ", ";, 20*")
+
+		-- prepare string to be split
+		for key, value in pairs(numberWords) do
+			s = string.gsub(s, ", " .. key .. " ", ";, " .. value .. "*")
 		end
 
-		if (string.sub(lastWord, string.len(lastWord)) == "s") and (isSingularWord == false) and (singularWordEndsInE == false) and (removeES == false) then
-			removeS = true
+		-- unprepare items with a comma
+		for index, value in ipairs(itemsWithComma) do
+			local seatchString = string.gsub(value, ", ", ";, ")
+			s = string.gsub(s, seatchString, value)
 		end
 
-		if isSingularWord then
-			result = result
-		elseif singularWordEndsInE then
-			result = string.sub(result, 0, string.len(result)-1)
-		elseif removeES then
-			result = string.sub(result, 0, string.len(result)-2)
-		elseif removeS then
-			result = string.sub(result, 0, string.len(result)-1)
+		s = string.gsub(s, "^;, ", "", 1)
+		local contentTable = string.toTable(s, ";,")
+		local contentArray = {}
+
+		for i = 1, #contentTable, 1 do
+			contentTable[i] = string.trim(contentTable[i])
+			local fooTable = string.toTable(contentTable[i],"*")
+			local singleItem = VaultConvertItemNamePluralToSingle(fooTable[2])
+			contentArray[singleItem] = fooTable[1]
 		end
-	end
-	return result
-end
-
-function VaultGetAllVaultContentItemsAsTable()
-	local vaultContentsArray = VaultGetVaultContentsArray()
-	local allVaultContents = {}
-	for k, v in pairs(vaultContentsArray) do
-		for key, value in pairs(v) do
-			allVaultContents[key] = 0
-		end
-	end
-
-	for k, v in pairs(vaultContentsArray) do
-		for key, value in pairs(v) do
-			allVaultContents[key] = allVaultContents[key] + tonumber(value)
-		end
-	end
-
-	return allVaultContents
-end
-
-function VaultGetSpecificItemsByVault(vaultName, itemName)
-	if type(vaultName) ~= "string" then
-		Note("vaultName is not a string")
-	elseif type(itemName) ~= "string" then
-		Note("itemName is not a string")
+		return contentArray
 	else
-		local vaultContents = VaultGetVaultContentsArrayByVault(vaultName)
-		vaultContents = table.sort(vaultContents, function(k1, k2) return k1 < k2 end)
-		for key, value in pairs(vaultContents) do
-			Note(key .. ": " .. value)
-		end
+		ColourNote("red", "", "VaultConvertContentStringToArray error: input was not of type string")
+		return {}
 	end
 end
 
-function VaultGetVaultContentsArray()
-	local result = {}
-	local vaultContentsTable = VaultGetVaultContentsTable()
-	if type(vaultContentsTable) == "table" then
-		for i=1, #vaultContentsTable, 1 do
-			local arrayTable = string.toTable(vaultContentsTable[i], ";")
-			local contentTable = string.toTable(arrayTable[2], "|")
-			table.sort(contentTable, function (a, b)
-				return string.lower(a) < string.lower(b)
-			end)
-			result[arrayTable[1]] = VaultConvertContentsTableToArray(contentTable)
+function VaultCaptureLastContentString()
+	local currentVaultNameString = VaultGetCurrentVault()
+	local vaultContentsArray = VaultGetVaultContents()
+	local vaultInfo = vaultsInfo[currentVaultNameString]
+
+	local recentLinesTable = string.toTable(GetRecentLines(100), "\n")
+
+	local vaultFullStateString = ""
+	local vaultContentsString = ""
+	local matchIndex = -1
+
+	for i = 1, #recentLinesTable do
+		if string.find(recentLinesTable[i], vaultInfo.container) then
+			matchIndex = i
 		end
 	end
+	if matchIndex > -1 then
+		vaultFullStateString = ""
+		vaultContentsString = ""
+
+		for index = 0, 5, 1 do
+			local nextLine = recentLinesTable[matchIndex+index]
+			if type(nextLine) == "string" then
+				if string.find(nextLine, vaultInfo.container) then
+					-- The steel locker is about half full with eight pieces of white ambergris, an aerodynamic silver broomstick, five Creator Collector Cards, a darkened trident, Klang, a Heliodeliphilodelphiboschrome candle, a silver bamboo hairpin, an oiled leather thigh holster, Red Scare, Royal Wart, Outer Innie, Bite Marker, two green obbles, three small sticks, Painbox, a twisted vine ring, a flat cap, Sportscarf, a pair of tongs, a set of fire tongs, a Grflx scale, a lamp, a white mineral rock, some white mineral powder, a small canteen, a Klein bottle, a blue funnel and Man Reaper.
+					-- The steel locker contains eight pieces of white ambergris, an aerodynamic silver broomstick, five Creator Collector Cards, a darkened trident, Klang, a Heliodeliphilodelphiboschrome candle, a silver bamboo hairpin, an oiled leather thigh holster, Red Scare, Royal Wart, Outer Innie, Bite Marker, two green obbles, three small sticks, Painbox, a twisted vine ring, a flat cap, Sportscarf, a pair of tongs, a set of fire tongs, a Grflx scale, a lamp, a white mineral rock, some white mineral powder, a small canteen, a Klein bottle, a blue funnel and Man Reaper.
+					nextLine = string.gsub(nextLine, "%.$", "", 1)
+					for key, value in pairs(vaultsInfo) do
+						nextLine = string.gsub(nextLine, "^The " .. value.container .. " ", "", 1)
+						nextLine = string.gsub(nextLine, "^is ", "", 1)
+					end
+					for key, value in pairs(vaultFullStates) do
+						local matchString = string.gsub(key, "%-", "%%-")
+						nextLine = string.gsub(nextLine, matchString .. " ", key .. ";;;", 1)
+					end
+					if string.find(nextLine, ";;;") then
+						local fooTable = string.toTable(nextLine, ";;;")
+						vaultFullStateString = string.trim(fooTable[1])
+						vaultContentsString = string.trim(fooTable[2])
+						break
+					end
+				end
+			end
+		end
+	end
+
+	-- Set vault contents and vault full
+	if type(vaultContentsString) == "string" and vaultContentsString ~= "" then
+		vaultContentsArray[currentVaultNameString].contents = VaultConvertContentStringToArray(vaultContentsString)
+	else
+		vaultContentsArray[currentVaultNameString].contents = {}
+	end
+
+	if type(vaultFullStateString) == "string" and vaultFullStateString ~= "" then
+		vaultContentsArray[currentVaultNameString].full = vaultFullStateString
+	else
+		vaultContentsArray[currentVaultNameString].full = ""
+	end
+	VaultSetVaultContents(vaultContentsArray)
+end
+--#endregion
+
+--#region Process Trigger functions
+function VaultTriggerContents(name, output, wildcards)
+	local currentVaultString = VaultGetCurrentVault()
+	if type(currentVaultString) == "string" and currentVaultString ~= "" then
+		local vaultContentsArray = VaultGetVaultContents()
+		local vaultContentsString = wildcards[4]
+		local vaultFullStateString = string.trim(wildcards[2])
+		local contentsArray = VaultConvertContentStringToArray(vaultContentsString)
+		vaultContentsArray[currentVaultString].contents = contentsArray
+		vaultContentsArray[currentVaultString].full = vaultFullStateString
+		VaultSetVaultContents(vaultContentsArray)
+	else
+		ColourNote("red", "", "VaultTriggerContents error: currentVaultString is either not of type string or is empty")
+	end
+end
+
+function VaultTriggerSetInsideVault(name, output, wildcards)
+	local locationName = wildcards[1]
+	if locationName == "vault" or locationName == "inside the vault" or locationName == "inside the shed" or locationName == "octiron-lined strongroom" then
+		VaultSetInVaultWaitingRoom(false)
+		VaultSetInVault(true)
+		EnableTrigger("lblVaultTriggerSetInsideVault", false)
+	elseif locationName == "Nella's vault" or locationName == "cool, dry basement" or locationName == "safety deposit waiting room" or locationName == "Thella's vault" or locationName == "small garden" or locationName == "opulent office" or locationName == "office in Ohulan-Cutash" then
+		VaultSetInVaultWaitingRoom(true)
+		VaultSetInVault(false)
+		EnableTrigger("lblVaultTriggerSetInsideVault", true)
+	else
+		EnableTrigger("lblVaultTriggerSetInsideVault", false)
+		VaultSetInVaultWaitingRoom(false)
+		VaultSetInVault(false)
+		VaultSetCurrentVault("")
+	end
+end
+
+function VaultTriggerSetCurrentVault(name, output, wildcards)
+	local currentVault = wildcards[1]
+	if type(currentVault) == "string" and currentVault ~= "" then
+		VaultSetCurrentVault(currentVault)
+		EnableTrigger("lblVaultTriggerSetInsideVault", true)
+		if VaultGetInVault() then
+			VaultCaptureLastContentString()
+			VaultSetInVault(false)
+		end
+		VaultSetInVaultWaitingRoom(true)
+	else
+		ColourNote("red", "", "VaultTriggerSetCurrentVault error: match is not of type string or is empty")
+	end
+end
+--#endregion
+
+--#region Process Alias functions
+function VaultAliasVaultCheckAll(name, output, wildcards)
+	VaultPrintConsolidatedVaultContents()
+end
+
+function VaultAliasVaultCheckAllVaults(name, output, wildcards)
+	VaultPrintAllVaults()
+end
+
+function VaultAliasVaultCheckAnyHasItem(name, output, wildcards)
+	local item = wildcards[1]
+	VaultPrintAnyHasItem(item)
+end
+
+function c(name, output, wildcards)
+	local vaultName = wildcards[1]
+	for vaultInfoKey, vaultInfoValue in pairs(vaultsInfo) do
+		if vaultInfoKey == vaultName then
+			VaultPrintVaultContents(vaultInfoKey)
+			return
+		end
+	end
+	ColourNote("red", "", "VaultAliasVaultContent error: Input vault name is unknown")
+end
+--#endregion
+
+--#region Variable functions
+
+--#region Get
+function VaultGetAllVaultContentItemsArray()
+	local vaultContentsArray = VaultGetVaultContents()
+	local returnArray = {}
+
+	for vaultKey, vaultValue in pairs(vaultContentsArray) do
+		for contentKey, contentValue in pairs(vaultValue.contents) do
+			returnArray[contentKey] = 0
+		end
+	end
+
+	for vaultKey, vaultValue in pairs(vaultContentsArray) do
+		for contentKey, contentValue in pairs(vaultValue.contents) do
+			returnArray[contentKey] = returnArray[contentKey] + contentValue
+		end
+	end
+	return returnArray
+end
+
+function VaultGetCurrentVault()
+	local result = GetVariable("vaultCurrent") or ""
 	return result
 end
 
-function VaultGetVaultContentsArrayByVault(vaultName)
-	local vaultContentsArray = VaultGetVaultContentsArray()
-	for key, value in pairs(vaultContentsArray) do
-		if string.lower(key) == string.lower(vaultName) then
-			return value
-		end
+function VaultGetInVault()
+	local inVault = GetVariable("vaultInVault")
+	local returnBoolean = false
+	if inVault == "true" then
+		returnBoolean = true
 	end
+	return returnBoolean
 end
 
-function VaultGetVaultContentsTable()
-	local result = {}
-	local vaultContentsString = VaultGetVaultContents()
-	if type(vaultContentsString) == "string" then
-		result = string.toTable(vaultContentsString, "/")
+function VaultGetInVaultWaitingRoom()
+	local inVault = GetVariable("vaultInVaultWaitingRoom")
+	local returnBoolean = false
+	if inVault == "true"then
+		returnBoolean = true
+	end
+	return returnBoolean
+end
+
+function VaultGetVaultContents()
+	local result
+	local s = GetVariable("vaultContents")
+	if type(s) == "nil" then
+		local t = {}
+		for vaultKey, vaultValue in pairs(vaultsInfo) do
+			t[vaultKey] = {
+				full = "",
+				contents = {},
+			}
+		end
+		result = t
+	else
+		result = json.decode(s)
 	end
 	return result
 end
 
 function VaultGetVaultsContainingItem(item)
-	local contentsArray = VaultGetVaultContentsArray()
+	local contentsArray = VaultGetVaultContents()
 	local matchVaults = {}
-	
-	for key, value in pairs(contentsArray) do
-		for k, v in pairs(value) do
-			if string.find(string.lower(k), string.lower(item)) then
-				table.insert(matchVaults, key)
+	for contentsArrayKey, contentsArrayValue in pairs(contentsArray) do
+		for contentKey, contentValue in pairs(contentsArrayValue.contents) do
+			if string.find(string.lower(contentKey), string.lower(item)) then
+				table.insert(matchVaults, contentsArrayKey)
+				break
 			end
 		end
 	end
-	
-	return table.unique(matchVaults)
+
+	return matchVaults
+end
+--#endregion
+
+--#region Set
+function VaultSetCurrentVault(currentVaultString)
+	if type(currentVaultString) == 'string' then
+		SetVariable("vaultCurrent", currentVaultString)
+	else
+		ColourNote("red", "", "VaultSetCurrentVault error: input is not of type string")
+	end
 end
 
+function VaultSetInVaultWaitingRoom(inVaultWaitingRoomBoolean)
+	if type(inVaultWaitingRoomBoolean) == 'boolean' then
+		SetVariable("vaultInVaultWaitingRoom", tostring(inVaultWaitingRoomBoolean))
+	else
+		ColourNote("red", "", "VaultSetInVaultWaitingRoom error: input is not of type boolean")
+	end
+end
+
+function VaultSetInVault(inVaultBoolean)
+	if type(inVaultBoolean) == 'boolean' then
+		SetVariable("vaultInVault", tostring(inVaultBoolean))
+	else
+		ColourNote("red", "", "VaultSetInVault error: input is not of type boolean")
+	end
+end
+
+function VaultSetVaultContents(vaultContentsArray)
+	if type(vaultContentsArray) == 'table' then
+		SetVariable("vaultContents", json.encode(vaultContentsArray))
+	else
+		ColourNote("red", "", "VaultSetVaultContents error: input is not of type table")
+	end
+end
+--#endregion
+
+--#endregion
+
+--#region Print functions
 function VaultPrintAllVaults()
-	local totalAmount = table.length(vaults)
+	local vaultContentsArray = VaultGetVaultContents()
+
+	local fullTable = {}
+	for key, value in pairs(vaultContentsArray) do
+		table.insert(fullTable, value.full)
+	end
+	local fullTableMax = table.valueMaxStringLength(fullTable)
+
+	local cityTable = {}
+	for key, value in pairs(vaultsInfo) do
+		table.insert(cityTable, value.city)
+	end
+	local cityTableMax = table.valueMaxStringLength(cityTable)
+
+	local showContentsMax = 0
+	if not table.isEmpty(VaultGetAllVaultContentItemsArray()) then
+		showContentsMax = string.len("[Show contents] ")
+	end
+
+	local totalAmount = table.length(vaultsInfo)
 	for i = 1, totalAmount, 1 do
-		for k, v in pairs(vaults) do
-			if v["order"] == i then
-				VaultPrintVaultInfoByVault(k)
+		for vaultKey, vaultValue in pairs(vaultsInfo) do
+			if vaultValue["order"] == i then
+				local vault = vaultsInfo[vaultKey]
+
+				-- Show if has contents in vault
+				local vaultFull = vaultContentsArray[vaultKey].full
+
+				if vaultFull ~= "" then
+					-- Show hyperlink to get content details
+					Tell("[")
+					Tell(Hyperlink("vaultcontent " .. vaultKey, "Show contents", "Show contents of " .. vaultKey, "#FF8C00", "black", 0))
+					Tell("]")
+					Tell(" ")
+				else
+					Tell(string.addLeadingTrailing("", showContentsMax, " "))
+				end
+
+				if vaultFull ~= "" then
+					-- Get hexcolour from vaultFullStates and use that.
+					Tell("(")
+					ColourTell(vaultFullStates[vaultFull].hexColour, "", string.addLeadingTrailing(vaultFullStates[vaultFull].percentage .. "%", 4, " "))
+					Tell(")")
+					Tell(" ")
+				else
+					Tell(string.addLeadingTrailing("", 7, " "))
+				end
+
+				ColourTell("red", "", vault.city)
+				Tell(string.addLeadingTrailing("", cityTableMax - string.len(vault.city) + 1, " ", true))
+
+				Tell(Hyperlink("minimap " .. vaultKey, vaultKey, "Automove to " .. vaultKey, "#FF8C00", "black", 0))
+
+				Tell(" (costs ")
+				ColourTell("yellow", "", vault.cost)
+				Tell(")")
+				Note("")
 			end
 		end
 	end
@@ -1102,26 +1447,67 @@ function VaultPrintAnyHasItem(item)
 	elseif string.len(item) < 3 then
 		Note("Enter at least 3 letters to get more accurate results.")
 	else
+		local vaultContentsArray = VaultGetVaultContents()
 		local matchVaultTable = VaultGetVaultsContainingItem(item)
+
+		local fullTable = {}
+		for key, value in pairs(vaultContentsArray) do
+			table.insert(fullTable, value.full)
+		end
+		local fullTableMax = table.valueMaxStringLength(fullTable)
+	
+		local cityTable = {}
+		for key, value in pairs(vaultsInfo) do
+			table.insert(cityTable, value.city)
+		end
+		local cityTableMax = table.valueMaxStringLength(cityTable)
+	
+		local showContentsMax = 0
+		if not table.isEmpty(VaultGetAllVaultContentItemsArray()) then
+			showContentsMax = string.len("[Show contents] ")
+		end
+
 		if(#matchVaultTable == 0) then
-			Note("No vault contains " .. item .. ".")
+			ColourNote("yellow", "", "No vault contains " .. item .. ".")
 		else
 			for i = 1, #matchVaultTable, 1 do
-				local vault = vaults[matchVaultTable[i]]
-				Tell("[")
-				Tell(Hyperlink("vaultcontent " .. matchVaultTable[i], "Show contents", "Show contents of " .. matchVaultTable[i], "#FF8C00", "black", 0))
-				Tell("]")
-				Tell(" ")
+				local vaultKey = matchVaultTable[i]
+				local vault = vaultsInfo[vaultKey]
+
+				-- Show if has contents in vault
+				local vaultFull = vaultContentsArray[vaultKey].full
+
+				if vaultFull ~= "" then
+					-- Show hyperlink to get content details
+					Tell("[")
+					Tell(Hyperlink("vaultcontent " .. vaultKey, "Show contents", "Show contents of " .. vaultKey, "#FF8C00", "black", 0))
+					Tell("]")
+					Tell(" ")
+				else
+					Tell(string.addLeadingTrailing("", showContentsMax, " "))
+				end
+
+				if vaultFull ~= "" then
+					-- Get hexcolour from vaultFullStates and use that.
+					Tell("(")
+					ColourTell(vaultFullStates[vaultFull].hexColour, "", string.addLeadingTrailing(vaultFullStates[vaultFull].percentage .. "%", 4, " "))
+					Tell(")")
+					Tell(" ")
+				else
+					Tell(string.addLeadingTrailing("", 7, " "))
+				end
+
 				ColourTell("red", "", vault.city)
-				Tell(": " .. matchVaultTable[i] .. " (costs ")
+				Tell(string.addLeadingTrailing("", cityTableMax - string.len(vault.city) + 1, " ", true))
+
+				Tell(Hyperlink("minimap " .. vaultKey, vaultKey, "Automove to " .. vaultKey, "#FF8C00", "black", 0))
+
+				Tell(" (costs ")
 				ColourTell("yellow", "", vault.cost)
-				Tell(") ")
-				ColourTell("#0080FF", "", "[")
-				ColourTell(Hyperlink("minimap " .. matchVaultTable[i], "Go to", "Automove to " .. matchVaultTable[i], "#FF8C00", "black", 0))
-				ColourTell("#0080FF", "", "]")
+				Tell(")")
 				Note("")
-				
-				local vaultContents = VaultGetVaultContentsArrayByVault(matchVaultTable[i])
+
+				local vaultContents = vaultContentsArray[matchVaultTable[i]].contents
 				for key, value in pairs(vaultContents) do
 					if string.match(string.lower(key), string.lower(item)) then
 						ColourTell("#0080FF", "", "- ")
@@ -1137,142 +1523,48 @@ function VaultPrintAnyHasItem(item)
 	end
 end
 
-function VaultPrintVaultInfoByVault(vaultName)
-	local vault = vaults[vaultName]
-	local vaultContents = VaultGetVaultContentsArrayByVault(vaultName)
-	if type(vaultContents) == "table" then
-		Tell("[")
-		Tell(Hyperlink("vaultcontent " .. vaultName, "Show contents", "Show contents of " .. vaultName, "#FF8C00", "black", 0))
-		Tell("]")
-		Tell(" ")
-	end
-
-	ColourTell("red", "", vault.city)
-	Tell(": " .. vaultName .. " (costs ")
-	ColourTell("yellow", "", vault.cost)
-	Tell(")")
-	Tell(" ")
-	Tell("[")
-	Tell(Hyperlink("minimap " .. vaultName, "Go to " .. vaultName, "Automove", "#FF8C00", "black", 0))
-	Tell("]")
-	Note("")
-end
-
 function VaultPrintConsolidatedVaultContents()
-	ColourNote("yellow", "", "All vaults' contents:")
-	VaultPrintContentsArray(VaultGetAllVaultContentItemsAsTable())
+	local allVaultContentItemsArray = VaultGetAllVaultContentItemsArray()
+	if not table.isEmpty(allVaultContentItemsArray) then
+		local title = "All vaults' contents"
+		ColourNote("yellow", "", string.upper(title))
+		VaultPrintContentsArray(VaultGetAllVaultContentItemsArray(), true)
+	else
+		ColourNote("yellow", "", "No vault contains any item.")
+	end
 end
 
 function VaultPrintVaultContents(vaultName)
-	ColourNote("yellow", "", string.upper(vaultName))
-	VaultPrintContentsArray(VaultGetVaultContentsArrayByVault(vaultName))
-end
-
-function VaultPrintContentsArray(array)
-	local contentsTable = {}
-	for key, value in pairs(array) do
-		table.insert(contentsTable, {name = key, amount = value})
-	end
-	table.sort(contentsTable, function (k1,k2) return string.lower(k1.name) < string.lower(k2.name) end)
-	for index, value in ipairs(contentsTable) do
-		ColourTell("#0080FF", "", value.name .. ": ")
-		ColourTell("#7DE800", "", value.amount)
-		Note("")
+	if type(vaultName) == "string" and vaultName ~= "" then
+		local vaultContentsArray = VaultGetVaultContents()
+		ColourNote("yellow", "", string.upper(vaultName))
+		VaultPrintContentsArray(vaultContentsArray[vaultName].contents, true)
+	else
+		ColourNote("red", "", "VaultPrintVaultContents error: input is empty or not of type string")
 	end
 end
---#endregion
 
---#region Process Trigger functions
-function VaultProcessTriggerContents(name, output, wildcards)
-	local vaultContents = VaultGetVaultContentsArray()
-	if table.isEmpty(vaultContents) then
-		vaultContents = {}
-	end
-
-	local contentString = wildcards[4]
-	local contentsArray = VaultConvertContentStringToArray(contentString)
-	local currentVault = VaultGetVaultCurrent()
-
-	vaultContents[currentVault] = contentsArray
-	
-	VaultSetVaultContentsArray(vaultContents)
-end
-
-function VaultProcessTriggerCurrent(name, output, wildcards)
-	VaultSetVaultCurrent(wildcards[1])
-end
---#endregion
-
---#region Process Alias functions
-function VaultProcessAliasVaultCheckAll(name, output, wildcards)
-	VaultPrintConsolidatedVaultContents()
-end
-
-function VaultProcessAliasVaultCheckAllVaults(name, output, wildcards)
-	VaultPrintAllVaults()
-end
-
-function VaultProcessAliasVaultCheckAnyHasItem(name, output, wildcards)
-	local item = wildcards[1]
-	VaultPrintAnyHasItem(item)
-end
-
-function VaultProcessAliasVaultContent(name, output, wildcards)
-	local vaultName = wildcards[1]
-	VaultPrintVaultContents(vaultName)
-end
---#endregion
-
---#region Variable functions
-function VaultGetVaultContents()
-	local result = GetVariable("vaultContents")
-	if string.isEmpty(result) then
-		result = ""
-	end
-	return result
-end
-
-function VaultGetVaultCurrent()
-	local result = GetVariable("vaultCurrent")
-	if string.isEmpty(result) then
-		result = ""
-	end
-	return result
-end
-
-function VaultSetVaultContentsArray(a)
-	if type(a) == "table" then
-		local result = ""
-
-		if not table.isEmpty(a) then
-			local resultTable = {}
-			for key, value in pairs(a) do
-				local fooTable1 = {}
-				for k, v in pairs(value) do
-					table.insert(fooTable1, k.."*"..v)
-				end
-				table.sort(fooTable1, function (k1,k2) return string.lower(k1) < string.lower(k2) end)
-				local resultString = table.concat(fooTable1,"|")
-				table.insert(resultTable,key .. ";" .. resultString)
-			end
-			result = table.concat(resultTable, "/")
+function VaultPrintContentsArray(array, toSort)
+	if type(array) == "table" then
+		local sortArray = false
+		if toSort then
+			sortArray = toSort
 		end
-		VaultSetVaultContents(result)
+		local contentsTable = {}
+		for key, value in pairs(array) do
+			table.insert(contentsTable, {name = key, amount = value})
+		end
+		if sortArray then
+			table.sort(contentsTable, function (k1,k2) return string.lower(k1.name) < string.lower(k2.name) end)
+		end
+		for index, value in ipairs(contentsTable) do
+			ColourTell("#0080FF", "", value.name .. ": ")
+			ColourTell("#7DE800", "", value.amount)
+			Note("")
+		end
 	else
-		ColourNote("red", "", "VaultSetVaultContentsArray error: input is not an table")
+		ColourNote("red", "", "VaultPrintContentsArray error: input array is not of type table")
 	end
-end
-
-function VaultSetVaultContents(s)
-	if type(s) == "string" then
-		SetVariable("vaultContents", s)
-	else
-		ColourNote("red", "", "VaultSetVaultContents error: input is not a string")
-	end
-end
-
-function VaultSetVaultCurrent(string)
-	SetVariable("vaultCurrent", string)
 end
 --#endregion
 ]]>
@@ -1283,80 +1575,91 @@ end
 	<trigger
 		enabled="y"
 		regexp="y"
-		name="lblVaultSetCurrent1"
-		group="vaults"
+		group="VaultTrigger"
 		match="^\[(Nella\'s vault)\]$"
-		script="VaultProcessTriggerCurrent"
+		script="VaultTriggerSetCurrentVault"
 		sequence="100"
 	>
 	</trigger>
 	<trigger
 		enabled="y"
 		regexp="y"
-		name="lblVaultSetCurrent2"
-		group="vaults"
+		group="VaultTrigger"
 		match="^\[(cool, dry basement)\]$"
-		script="VaultProcessTriggerCurrent"
+		script="VaultTriggerSetCurrentVault"
 		sequence="100"
 	>
 	</trigger>
 	<trigger
 		enabled="y"
 		regexp="y"
-		name="lblVaultSetCurrent3"
-		group="vaults"
+		group="VaultTrigger"
 		match="^\[(safety deposit waiting room)\]$"
-		script="VaultProcessTriggerCurrent"
+		script="VaultTriggerSetCurrentVault"
 		sequence="100"
 	>
 	</trigger>
 	<trigger
 		enabled="y"
 		regexp="y"
-		name="lblVaultSetCurrent4"
-		group="vaults"
+		group="VaultTrigger"
 		match="^\[(Thella\'s vault)\]$"
-		script="VaultProcessTriggerCurrent"
+		script="VaultTriggerSetCurrentVault"
 		sequence="100"
 	>
 	</trigger>
 	<trigger
 		enabled="y"
 		regexp="y"
-		name="lblVaultSetCurrent5"
-		group="vaults"
+		group="VaultTrigger"
 		match="^\[(small garden)\]$"
-		script="VaultProcessTriggerCurrent"
+		script="VaultTriggerSetCurrentVault"
 		sequence="100"
 	>
 	</trigger>
 	<trigger
 		enabled="y"
 		regexp="y"
-		name="lblVaultSetCurrent6"
-		group="vaults"
+		group="VaultTrigger"
 		match="^\[(opulent office)\]$"
-		script="VaultProcessTriggerCurrent"
+		script="VaultTriggerSetCurrentVault"
 		sequence="100"
 	>
 	</trigger>
 	<trigger
 		enabled="y"
 		regexp="y"
-		name="lblVaultSetCurrent7"
-		group="vaults"
+		group="VaultTrigger"
 		match="^\[(office in Ohulan-Cutash)\]$"
-		script="VaultProcessTriggerCurrent"
+		script="VaultTriggerSetCurrentVault"
 		sequence="100"
+	>
+	</trigger>
+	<trigger
+		regexp="y"
+		group="VaultTrigger"
+		match="^\[(.+)\]$"
+		name="lblVaultTriggerSetInsideVault"
+		script="VaultTriggerSetInsideVault"
+		sequence="10"
 	>
 	</trigger>
 	<trigger
 		enabled="y"
 		regexp="y"
 		name="lblVaultSetContent"
-		group="vaults"
-		match="The (drawer|large wooden drawer|steel locker|cubby hole|octiron tesseract|clean nest) is (almost empty except for|almost full|over-full|almost completely full|completely full|about .+ full)( with)? (.+)\."
-		script="VaultProcessTriggerContents"
+		group="VaultTrigger"
+		match="The (drawer|large wooden drawer|steel locker|cubby hole|octiron tesseract|clean nest) is (almost empty except for|about (.+) full with|almost full with|almost completely full with|completely full with|over-full with) (.+)\."
+		script="VaultTriggerContents"
+		sequence="100"
+	>
+	</trigger>
+	<trigger
+		enabled="y"
+		regexp="y"
+		match="The (drawer|large wooden drawer|steel locker|cubby hole|octiron tesseract|clean nest)(( )contains( ))(.+)\."
+		group="VaultTrigger"
+		script="VaultTriggerContents"
 		sequence="100"
 	>
 	</trigger>
@@ -1369,9 +1672,9 @@ end
 		regexp="y"
 		ignore_case="y"
 		name="lblVaultCheckAllVaults"
-		group="vaults"
+		group="VaultAlias"
 		match="^vaults?$"
-		script="VaultProcessAliasVaultCheckAllVaults"
+		script="VaultAliasVaultCheckAllVaults"
 		sequence="100"
 	>
 	</alias>
@@ -1380,9 +1683,9 @@ end
 		regexp="y"
 		ignore_case="y"
 		name="lblVaultCheckAnyHasItem"
-		group="vaults"
+		group="VaultAlias"
 		match="^vaults? (.*)$"
-		script="VaultProcessAliasVaultCheckAnyHasItem"
+		script="VaultAliasVaultCheckAnyHasItem"
 		sequence="100"
 	>
 	</alias>
@@ -1391,9 +1694,9 @@ end
 		regexp="y"
 		ignore_case="y"
 		name="lblVaultCheckAll"
-		group="vaults"
+		group="VaultAlias"
 		match="^vaults?all$"
-		script="VaultProcessAliasVaultCheckAll"
+		script="VaultAliasVaultCheckAll"
 		sequence="100"
 	>
 	</alias>
@@ -1402,9 +1705,9 @@ end
 		regexp="y"
 		ignore_case="y"
 		name="lblVaultContent"
-		group="vaults"
+		group="VaultAlias"
 		match="^vaults?content (.+)$"
-		script="VaultProcessAliasVaultContent"
+		script="VaultAliasVaultContent"
 		sequence="100"
 	>
 	</alias>
