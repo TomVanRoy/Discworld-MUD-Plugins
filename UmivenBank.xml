@@ -10,10 +10,10 @@
    language="Lua"
    purpose="Bank Tracker"
    date_written="2022-05-22"
-   date_modified="2022-06-03"
+   date_modified="2022-09-05"
    save_state="y"
    requires="5.06"
-   version="1.01"
+   version="1.02"
    >
 </plugin>
 
@@ -38,10 +38,6 @@
 -- ********************************************************************
 
 local json = require("json")
-
--- function OnPluginInstall()
--- 	DeleteVariable("bankBalances")
--- end
 
 --#region database
 local banksInfo = {
