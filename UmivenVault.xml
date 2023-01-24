@@ -10,10 +10,10 @@
    language="Lua"
    purpose="Vault Tracker"
    date_written="2022-05-27"
-   date_modified="2022-08-30"
+   date_modified="2022-10-12"
    save_state="y"
    requires="5.06"
-   version="1.03"
+   version="1.05"
    >
 </plugin>
 
@@ -37,7 +37,7 @@
 -- *****  vaults.                                                 *****
 -- ********************************************************************
 
-require 'json'
+require "json"
 
 --#region database
 local vaultsInfo = {
@@ -105,31 +105,35 @@ local vaultFullStates = {
 	},
 	["almost empty except for"] = {
 		percentage = "10",
-		hexColour = "#24DAFF",
+		hexColour = "#00bfff",
 	},
 	["about one-quarter full with"] = {
 		percentage = "25",
-		hexColour = "#48B6FF",
+		hexColour = "#007fff",
 	},
 	["about half full with"] = {
 		percentage = "50",
-		hexColour = "#6D91FF",
+		hexColour = "#0040ff",
 	},
 	["about three-quarters full with"] = {
 		percentage = "75",
-		hexColour = "#916DFF",
+		hexColour = "#0000ff",
 	},
 	["almost full with"] = {
 		percentage = "90",
-		hexColour = "#B648FF",
+		hexColour = "#4000ff",
+	},
+	["almost completely full with"] = {
+		percentage = "95",
+		hexColour = "#7f00ff",
 	},
 	["completely full with"] = {
 		percentage = "100",
-		hexColour = "#DA24FF",
+		hexColour = "#bf00ff",
 	},
 	["over-full with"] = {
 		percentage = "110",
-		hexColour = "#FF00FF",
+		hexColour = "#ff00ff",
 	},
 }
 local itemsEndingInES = {
@@ -882,22 +886,14 @@ function string.addLeadingTrailing(str, max, fill, trailing)
 	if type(str) ~= "string" or type(max) ~= "number" or type(fill) ~= "string" then
 		Note("One of the entered variables is of the incorrect type")
 	else
-		local trail = false
-		if trailing then
-			trail = trailing
-		end
+		-- set trailing or leading boolean optional parameter
+		local trail = trailing or false
 
-		local amountToAdd = max - string.len(str)
+		local amountToAdd = max - #str
 		local returnString = str
-		if trailing then
-			for i = 1, amountToAdd, 1 do
-				returnString = returnString .. fill
-			end
-		else
-			for i = 1, amountToAdd, 1 do
-				returnString = fill .. returnString
-			end
-		end
+
+		returnString = trail and returnString .. string.rep(fill, amountToAdd) or string.rep(fill, amountToAdd) .. returnString
+
 		return returnString
 	end
 end
@@ -1189,17 +1185,19 @@ end
 
 --#region Process Trigger functions
 function VaultTriggerContents(name, output, wildcards)
+	local vaultContentsString = wildcards[5]
 	local currentVaultString = VaultGetCurrentVault()
 	if type(currentVaultString) == "string" and currentVaultString ~= "" then
 		local vaultContentsArray = VaultGetVaultContents()
-		local vaultContentsString = wildcards[4]
-		local vaultFullStateString = string.trim(wildcards[2])
+		table.print(vaultContentsArray)
+		local vaultFullStateString = string.trim(wildcards[3])
 		local contentsArray = VaultConvertContentStringToArray(vaultContentsString)
 		vaultContentsArray[currentVaultString].contents = contentsArray
 		vaultContentsArray[currentVaultString].full = vaultFullStateString
 		VaultSetVaultContents(vaultContentsArray)
 	else
 		ColourNote("red", "", "VaultTriggerContents error: currentVaultString is either not of type string or is empty")
+		ColourNote("blue", "", "currentVaultString: " .. currentVaultString)
 	end
 end
 
@@ -1251,7 +1249,7 @@ function VaultAliasVaultCheckAnyHasItem(name, output, wildcards)
 	VaultPrintAnyHasItem(item)
 end
 
-function c(name, output, wildcards)
+function VaultAliasVaultContent(name, output, wildcards)
 	local vaultName = wildcards[1]
 	for vaultInfoKey, vaultInfoValue in pairs(vaultsInfo) do
 		if vaultInfoKey == vaultName then
@@ -1308,7 +1306,7 @@ function VaultGetInVaultWaitingRoom()
 end
 
 function VaultGetVaultContents()
-	local result
+	local result = nil
 	local s = GetVariable("vaultContents")
 	if type(s) == "nil" then
 		local t = {}
@@ -1320,7 +1318,19 @@ function VaultGetVaultContents()
 		end
 		result = t
 	else
-		result = json.decode(s)
+		local success, res = pcall(json.decode, s);
+		if success then
+			result = res
+		else
+			local t = {}
+			for vaultKey, vaultValue in pairs(vaultsInfo) do
+				t[vaultKey] = {
+					full = "",
+					contents = {},
+				}
+			end
+			result = t
+		end
 	end
 	return result
 end

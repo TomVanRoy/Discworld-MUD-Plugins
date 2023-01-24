@@ -10,10 +10,10 @@
 	language="Lua"
 	purpose="Witch Helper"
 	date_written="2022-08-26"
-	date_modified="2022-08-26"
+	date_modified="2022-10-13"
 	save_state="y"
 	requires="5.06"
-	version="1.00"
+	version="1.01"
 >
 </plugin>
 
@@ -351,10 +351,10 @@ local flyto = {
 	["chaz"] = { area = "The Ramtops", city = "Slippery Hollow", longName = "Chaz Derwin", location = "wanders near the common, east of town", static = "n"},
 	["wheaten"] = { area = "The Ramtops", city = "Slippery Hollow", longName = "Wheaten", location = "wanders near the common, east of town", static = "n"},
 	["phillipa"] = { area = "The Ramtops", city = "Slippery Hollow", longName = "Phillipa Pigshotham", location = "wanders near the common, east of town", static = "n"},
-	["boad"] = { area = "The Ramtops", city = "The temple of the Monks of Cool", longName = "Brother Boad", location = "entrance", static = "y"},
-	["bibi"] = { area = "The Ramtops", city = "The temple of the Monks of Cool", longName = "Sister Bi-Bi Effenne", location = "upstairs balcony", static = "y"},
-	["titi"] = { area = "The Ramtops", city = "The temple of the Monks of Cool", longName = "Sister Ti-Ti Effenne", location = "upstairs balcony", static = "y"},
-	["templeguard"] = { area = "The Ramtops", city = "The temple of Soyin the Wandering God", longName = "Temple guardian", location = "entrance", static = "y"},
+	["boad"] = { area = "The Ramtops", city = "Temple of the Monks of Cool", longName = "Brother Boad", location = "entrance", static = "y"},
+	["bibi"] = { area = "The Ramtops", city = "Temple of the Monks of Cool", longName = "Sister Bi-Bi Effenne", location = "upstairs balcony", static = "y"},
+	["titi"] = { area = "The Ramtops", city = "Temple of the Monks of Cool", longName = "Sister Ti-Ti Effenne", location = "upstairs balcony", static = "y"},
+	["templeguard"] = { area = "The Ramtops", city = "Temple of Soyin the Wandering God", longName = "Temple guardian", location = "entrance", static = "y"},
 	["Cohen"] = { area = "The Ramtops", city = "Barbarian Camp", longName = "Cohen the Barbarian", location = "Winter Camp only"},
 	["Ramkin"] = { area = "The Ramtops", city = "Barbarian Camp", longName = "Feather Ramkin", location = "Summer Camp only"},
 	["Nessie"] = { area = "The Ramtops", city = "Lancre Pool", longName = "Lancre Ness Monster", static = "n"},

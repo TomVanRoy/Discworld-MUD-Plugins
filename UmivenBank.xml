@@ -10,10 +10,10 @@
    language="Lua"
    purpose="Bank Tracker"
    date_written="2022-05-22"
-   date_modified="2022-09-05"
+   date_modified="2023-01-24"
    save_state="y"
    requires="5.06"
-   version="1.02"
+   version="1.04"
    >
 </plugin>
 
@@ -37,15 +37,84 @@
 -- *****  all the money you are currently holding (rounded down). *****
 -- ********************************************************************
 
+--#region global variables
+local errorColour = "red"
+local bankNameColour = "orange"
+local moneyColour = "yellow"
+local totalColour = "#80FF80"
+--#endregion
+
 local json = require("json")
 
 --#region database
 local banksInfo = {
 	["Bing's First"] = {locations = "Bing's First Bank|branch of Bing's Bank|neat branch of Bing's bank", city = "Ankh-Morpork", streets = "Upper Broadway"},
 	["Lancrastian Farmers' Cooperative"] = {locations = "Lancrastian Farmers' Cooperative Bank", city = "Ankh-Morpork, Lancre, Ohulan Cutash", streets = "The Ridings, Lancre Town square, market"},
-	["First Imperial Bank of the Empire"] = {locations = "branch of the First Imperial Bank of the Empire", city = "Bes Pelargic", streets = "Market Street"},
+	["First Imperial Bank of the Empire"] = {locations = "branch of the First Imperial Bank of the Empire|First Imperial Bank of the Empire", city = "Bes Pelargic", streets = "Market Street"},
 	["Klatchian Continental"] = {locations = "Klatchian Continental Bank", city = "Djelibeybi, Ephebe", streets = "Market Street, Logical Lane"},
 	["Genua National"] = {locations = "Genua National Bank", city = "Genua", streets = "Royal Avenue"},
+}
+
+local regionInformation = {
+	["AM"] = {
+		wichitBeads = 4,
+		regexFind = {"A%$", "%dp"},
+		denominations = {
+			{name = "A$", value = 100}
+		}
+	},
+	["BP"] = {
+		wichitBeads = 4,
+		regexFind = {"Rh", "%ds"},
+		denominations = {
+			{name = "Rh", value = 120},
+			{name = "s", value = 1}
+		}
+	},
+	["LAN"] = {
+		wichitBeads = 3,
+		regexFind = {"Lp", "Ls", "LC", "LSov", "LH"},
+		denominations = {
+			{name = "LH", value = 82944},
+			{name = "LSov", value = 6912},
+			{name = "LC", value = 576},
+			{name = "Ls", value = 48},
+			{name = "Lp", value = 4}
+		}
+	},
+	["GEN"] = {
+		wichitBeads = 3,
+		regexFind = {"Gc", "Gl", "Gf", "Gd"},
+		denominations = {
+			{name = "Gd", value = 10000},
+			{name = "Gf", value = 1000},
+			{name = "Gl", value = 100},
+			{name = "Gc", value = 1}
+		}
+	},
+	["DJB"] = {
+		wichitBeads = 2,
+		regexFind = {"DjToon"},
+		denominations = {
+			{name = "DjToon ", value = 100}
+		}
+	},
+	["EPH"] = {
+		wichitBeads = 2,
+		regexFind = {"%dM", "%dde"},
+		denominations = {
+			{name = "M", value = 4800},
+			{name = "S", value = 96},
+			{name = "de", value = 1}
+		}
+	},
+	["KLA"] = {
+		wichitBeads = 5,
+		regexFind = {"dr"},
+		denominations = {
+			{name = " dr", value = 100}
+		}
+	}
 }
 --#endregion
 
@@ -55,35 +124,23 @@ function string.addLeadingTrailing(str, max, fill, trailing)
 		Note("One of the entered variables is of the incorrect type")
 	else
 		-- set trailing or leading boolean optional parameter
-		local trail = false
-		if trailing then
-			trail = trailing
-		end
+		local trail = trailing or false
 
-		local amountToAdd = max - string.len(str)
+		local amountToAdd = max - #str
 		local returnString = str
-		if trail then
-			for i = 1, amountToAdd, 1 do
-				returnString = returnString .. fill
-			end
-		else
-			for i = 1, amountToAdd, 1 do
-				returnString = fill .. returnString
-			end
-		end
+
+		returnString = trail and returnString .. string.rep(fill, amountToAdd) or string.rep(fill, amountToAdd) .. returnString
+
 		return returnString
 	end
 end
 
 function string.isEmpty(s)
-	if type(s) == "nil" then
-		return true
-	elseif type(s) == "string" then
-		return s == nil or s == ""
-	else
-		Note("input was not a string")
-		return true
-	end
+    local success, msg = pcall(function() assert(type(s) == "string") end)
+    if not success then
+        Note(msg)
+    end
+    return s == nil or #s == 0
 end
 
 function string.toTable(s, delimiter)
@@ -135,19 +192,18 @@ end
 
 function BankPrintAllInfo()
 	BankPrintAllBanks()
-	ColourNote("#80FF80", "", "Total: " .. BankGetTotalMoney())
+	ColourNote(totalColour, "", "Total: " .. BankGetTotalMoney())
 end
 
 function BankPrintBank(bankName, amount, currency)
-
 	if type(bankName) ~= "string" then
-		ColourNote("red", "", "BankPrintBank error: bankName is not of type string")
+		ColourNote(errorColour, "", "BankPrintBank error: bankName is not of type string")
 	end
 	if type(amount) ~= "number" then
-		ColourNote("red", "", "BankPrintBank error: amount is not of type number")
+		ColourNote(errorColour, "", "BankPrintBank error: amount is not of type number")
 	end
 	if type(currency) ~= "string" then
-		ColourTell("red", "", "BankPrintBank error: currency is not of type string")
+		error("BankPrintBank error: currency is not of type string")	
 	end
 
 	if type(bankName) == "string" and type(amount) == "number" and type(currency) == "string" then
@@ -183,14 +239,14 @@ function BankPrintBank(bankName, amount, currency)
 		local localAmount = WichitBeadsToCurrency(amount, currency)
 		local amAmount = WichitBeadsToCurrency(amount, "AM")
 		amAmount = string.gsub(amAmount, "A%$", "")
-		ColourTell("red", "", string.addLeadingTrailing(bankName, bankNameStringMaxLength, " ", true))
+		ColourTell(bankNameColour, "", string.addLeadingTrailing(bankName, bankNameStringMaxLength, " ", true))
 		Tell(" ")
 
 		if currency ~= "" then
-			ColourTell("yellow", "", string.addLeadingTrailing(localAmount, localStringMaxLength, " ", true))
+			ColourTell(moneyColour, "", string.addLeadingTrailing(localAmount, localStringMaxLength, " ", true))
 			Tell(" (")
-			ColourTell("yellow", "", "A$")
-			ColourTell("yellow", "", string.addLeadingTrailing(amAmount, amStringMaxLength - 2, " ", false))
+			ColourTell(moneyColour, "", "A$")
+			ColourTell(moneyColour, "", string.addLeadingTrailing(amAmount, amStringMaxLength - 2, " ", false))
 			Tell(")")
 		end
 		Note("")
@@ -205,11 +261,11 @@ function BankPrintAllBanks()
 			table.insert(bankTable, {name = key, amount = value.amount, currency = value.currency})
 		end
 		table.sort(bankTable, function (k1,k2) return string.lower(k1.name) < string.lower(k2.name) end)
-		for index, value in ipairs(bankTable) do
+		for _, value in ipairs(bankTable) do
 			BankPrintBank(value.name, value.amount, value.currency)
 		end
 	else
-		ColourTell("red", "", "BankPrintAllBanks error: bankArray is not of type table")
+		error("BankPrintAllBanks error: bankArray is not of type table")
 	end
 end
 --#endregion
@@ -218,28 +274,27 @@ end
 
 --#region Get
 function BankGetBankArray()
-	local bankArray
-	local bankBalancesString = GetVariable("bankBalances")
-	if type(bankBalancesString) == "nil" then
-		local t = {}
-		for bankInfoKey, bankInfoValue in pairs(banksInfo) do
-			t[bankInfoKey] = {
-				amount = 0,
-				currency = "",
-			}
-		end
-		bankArray = t
-	else
-		bankArray = json.decode(bankBalancesString)
-	end
-	return bankArray
+    local bankArray
+    local bankBalancesString = GetVariable("bankBalances")
+
+    local success, res = pcall(json.decode, bankBalancesString);
+    if success then
+        bankArray = res
+    else
+        bankArray = {}
+        for bankInfoKey, bankInfoValue in pairs(banksInfo) do
+            bankArray[bankInfoKey] = {
+                amount = 0,
+                currency = "",
+            }
+        end
+    end
+    return bankArray
 end
+-- end
 
 function BankGetCurrent()
-	local result = GetVariable("bankCurrent")
-	if type(result) ~= "string" then
-		result = ""
-	end
+	local result = GetVariable("bankCurrent") or ""
 	return result
 end
 
@@ -247,7 +302,7 @@ function BankGetTotalMoney()
 	local bankArray = BankGetBankArray()
 	local totalWichitBeads = 0
 
-	for key, value in pairs(bankArray) do
+	for _, value in pairs(bankArray) do
 		totalWichitBeads = totalWichitBeads + value.amount
 	end
 	return WichitBeadsToCurrency(totalWichitBeads, "AM")
@@ -297,23 +352,27 @@ end
 
 function BankSetPurse(name, output, wildcards)
 	local moneyString = wildcards[1]
-	SetVariable("bankPurseContents", "")
-	SetVariable("bankPurseContentsHalf", "")
+	if type(moneyString) == "string" then
+		SetVariable("bankPurseContents", "")
+		SetVariable("bankPurseContentsHalf", "")
 
-	if not (moneyString == "only moths") then
-		moneyString = string.gsub(moneyString, " and ", ", ")
-		while string.find(moneyString, "one") do
-			moneyString = string.gsub(moneyString, "one", "1")
-		end
-		SetVariable("bankPurseContents", moneyString)
-		local moneyTable = string.toTable(moneyString, ", ")
-		for i = 1, #moneyTable, 1 do
-			local newAmount = string.match(moneyTable[i], "%d+")
-			if (newAmount*1 > 1) then
-				moneyTable[i] = string.gsub(moneyTable[i], "%d+", math.floor(newAmount/2))
+		if moneyString ~= "only moths" then
+			moneyString = string.gsub(moneyString, " and ", ", ")
+			while string.find(moneyString, "one") do
+				moneyString = string.gsub(moneyString, "one", "1")
 			end
+			SetVariable("bankPurseContents", moneyString)
+			local moneyTable = string.toTable(moneyString, ", ")
+			for i = 1, #moneyTable, 1 do
+				local newAmount = string.match(moneyTable[i], "%d+")
+				if (newAmount*1 > 1) then
+					moneyTable[i] = string.gsub(moneyTable[i], "%d+", math.floor(newAmount/2))
+				end
+			end
+			SetVariable("bankPurseContentsHalf", table.concat(moneyTable,", "))
 		end
-		SetVariable("bankPurseContentsHalf", table.concat(moneyTable,", "))
+	else
+		ColourNote("red", "", "BankSetPurse error: Matched is not of type string")
 	end
 end
 --#endregion
@@ -330,291 +389,162 @@ end
 
 --#region Currency functions
 function CurrencyGetType(fullMoneyString)
-	if string.find(fullMoneyString, "A%$") or string.find(fullMoneyString, "%dp") then
-		return "AM"
-	elseif string.find(fullMoneyString, "DjToon") then
-		return "DJB"
-	elseif string.find(fullMoneyString, "Gc") or string.find(fullMoneyString, "Gl") or string.find(fullMoneyString, "Gf") or string.find(fullMoneyString, "Gd") then
-		return "GEN"
-	elseif string.find(fullMoneyString, "Lp") or string.find(fullMoneyString, "Ls") or string.find(fullMoneyString, "LC") or string.find(fullMoneyString, "LSov") or string.find(fullMoneyString, "LH") then
-		return "LAN"
-	elseif string.find(fullMoneyString, "%dM") or string.find(fullMoneyString, "%dde") then
-		return "EPH"
-	elseif string.find(fullMoneyString, "Rh") or string.find(fullMoneyString, "%ds") then
-		return "BP"
-	elseif string.find(fullMoneyString, "dr") then
-		return "KLA"
+    for currencyType, regexes in pairs(currencyTypes) do
+        for _, regex in pairs(regexes) do
+            if string.find(fullMoneyString, regex) then
+                return currencyType
+            end
+        end
+    end
+end
+
+function CurrencyGetType(fullMoneyString)
+	for type, info in pairs(regionInformation) do
+		for _, regex in pairs(info.regexFind) do
+			if string.find(fullMoneyString, regex) then
+				return type
+			end
+		end
 	end
 end
 
 function CurrencyToLowestDenomination(money, type)
-	local amountString
 	local amount = 0
 
 	if type == "AM" then
-		if string.find(money, "A%$") then
-			amountString = string.gsub(money, "A%$", "")
-			amount = amountString * 100
-		else
-			amount = string.gsub(money, "p", "")
-		end
+		local dollar = tonumber(string.match(money, "A%$([%d.]+)")) or 0
+		local penny = tonumber(string.match(money, "(%d+)p")) or 0
+		amount = dollar*100 + penny
 	elseif type == "BP" then
-		local rhinu = 0
-		local rhinuString = ""
-		local saveloy = 0
-		local saveloyString = ""
-
-		rhinuString = string.match(money, "%d+Rh")
-		if(not string.isEmpty(rhinuString)) then
-			rhinu = string.gsub(rhinuString, "Rh", "")
-		end
-		if not (rhinu == nil or rhinu == "") then
-			amount = (amount + rhinu*120)
-		end
-	
-		saveloyString = string.match(money, "%d+s")
-		if not (saveloyString == nil or saveloyString == "") then
-			saveloy = string.gsub(saveloyString, "s", "")
-		end
-		if not (saveloy == nil or saveloy == "") then
-			amount = amount + saveloy
-		end
+		local rhinu = string.match(money, "(%d+)Rh") or 0
+		local saveloy = string.match(money, "(%d+)s") or 0
+		amount = (tonumber(rhinu)*120) + tonumber(saveloy)
 	elseif type == "LAN" then
 		local multiplicationTable = {82944,6912,576,48,4}
-
-		amountString = string.gsub(money, "-", "0")
-		amountString = string.gsub(amountString, "%a+", "")
-		amountString = string.trim(amountString)
-		
-		local farthingsAmount
-		if string.find(money, "./4") then
-			farthingsAmount = string.match(money, "%d/4")
-			farthingsAmount = string.gsub(farthingsAmount, "/4", "")
-			amountString = string.gsub(amountString, "%d/4", "")
-		elseif string.find(money, "./2") then
-			farthingsAmount = string.match(money, "%d/2")
-			farthingsAmount = string.gsub(farthingsAmount, "/2", "")
-			farthingsAmount = farthingsAmount * 2
-			amountString = string.gsub(amountString, "%d/2", "")
+		if (string.match(money, "(%d+)/[24]")) then
+			amount = tonumber(string.match(money, "(%d+)/4")) or tonumber(string.match(money, "(%d+)/2") or 0) * 2
 		end
-
-		local amountTable = string.toTable(amountString,"|")
-
-		for i = 1, #amountTable do
-			if string.isEmpty(amountTable[i]) then
-				amountTable[i] = 0
-			end
-			amount = amount + (amountTable[i] * multiplicationTable[i])
-		end
-
-		if not (farthingsAmount == nil or farthingsAmount == "") then
-			amount = amount + farthingsAmount
+		money = string.gsub(money, "-", "0")
+		money = string.gsub(money, "(%d+)/[24]", "0")
+		money = string.match(money, "([%d+|-]+)")
+		local moneyTable = string.toTable(money,"|")
+		for i = 1, #moneyTable do
+			amount = amount + ((moneyTable[i] or 0) * multiplicationTable[i])
 		end
 	elseif type == "GEN" then
-		amountString = string.gsub(money, "G%a", "")
-		amountString = string.match(amountString, "[%d,?]+")
-		local amountTable = string.toTable(amountString, ",")
 		local multiplicationTable = {1,100,1000,10000}
-
+		money = string.gsub(money, "G%a", "")
+		money = string.match(money, "[%d,?]+")
+		local amountTable = string.toTable(money, ",")
 		table.reverse(amountTable)
-
 		for i = 1, #amountTable, 1 do
 			amount = amount + (amountTable[i] * multiplicationTable[i])
 		end
 	elseif type == "DJB" then
-		amountString = string.gsub(money, "DjToon ", "")
-		amount = amountString * 100
+		local toons = string.match(money, "DjToon ([%d.]+)") or 0
+		amount = tonumber(toons)*100
 	elseif type == "EPH" then
-		local amountMina = 0
-		local amountStater = 0
-		local amountDerechmus = 0
-		
-		if string.find(money, "%d+M") then
-			amountMina = string.match(money, "%d+M")
-			amountMina = string.gsub(amountMina, "M", "")
-			amount = amount + (amountMina * 4800)
-		end
-		
-		if string.find(money, "S%d+") then
-			amountStater = string.match(money, "S%d+")
-			amountStater = string.gsub(amountStater, "S", "")
-			amount = amount + (amountStater * 96)
-		end
-
-		if string.find(money, "%d+de") then
-			amountDerechmus = string.match(money, "%d+de")
-			amountDerechmus = string.gsub(amountDerechmus, "de", "")
-			amount = amount + amountDerechmus
-		end
+		local mina = tonumber(string.match(money, "(%d+)M")) or 0
+		local stater = tonumber(string.match(money, "S(%d+)")) or 0
+		local derechmus = tonumber(string.match(money, "(%d+)de")) or 0
+		amount = mina * 4800 + stater * 96 + derechmus
 	elseif type == "KLA" then
-		amountString = string.gsub(money, " dr", "")
-		if string.find(amountString, ",") then
-			amountString = string.gsub(amountString, ",", "")
-			amount = amountString * 1
+		money = string.gsub(money, " dr", "")
+		if string.find(money, ",") then
+			amount = tonumber(string.gsub(money, ",", ""))
 		else
-			amount = amountString * 100
+			amount = tonumber(money) * 100
 		end
 	end
 	return amount
 end
 
-function CurrencyToWichitBeads(baseDenominationMoney, type)
-	if (type == "AM") or (type == "BP") then
-		return baseDenominationMoney * 4
-	elseif (type == "LAN") or (type == "GEN") then
-		return baseDenominationMoney * 3
-	elseif (type == "DJB") or (type == "EPH") then
-		return baseDenominationMoney * 2
-	elseif type == "KLA" then
-		return baseDenominationMoney * 5
-	end
+function CurrencyToWichitBeads(baseDenominationMoney, coinType)
+    if type(baseDenominationMoney) ~= "number" then
+        error("baseDenominationMoney must be a number")
+    end
+    if type(coinType) ~= "string" then
+        error("type must be a string")
+    end
+    local info = regionInformation[coinType]
+    if info then
+        return baseDenominationMoney * info.wichitBeads
+    else
+        error("Unsupported type: "..coinType)
+    end
 end
 
 function WichitBeadsToCurrency(wichitBeads, type)
-	if type == "AM" then
-		local lowestDenomination = wichitBeads/4
-		local result = (lowestDenomination / 100)
-		result = (math.floor((result * 100)+0.5)/100)
-		return "A$" .. result
-	elseif type == "DJB" then
-		local lowestDenomination = wichitBeads/2
-		return "DjToon " .. lowestDenomination / 100
-	elseif type == "BP" then
-		local lowestDenomination = wichitBeads/4
+	local region = regionInformation[type]
+	if region then
+		local returnString = ""
+		local lowestDenomination = wichitBeads/region.wichitBeads
 
-		local rhinu = math.floor(lowestDenomination/120)
-		local saveloy = lowestDenomination - (rhinu*120)
-
-		local result = {}
-
-		if rhinu > 0 then
-			table.insert(result, rhinu .. "Rh")
-		end
-		if saveloy > 0 then
-			table.insert(result, saveloy .. "s")
+		for _, denomination in ipairs(region.denominations) do
+			denomination.amount = math.floor(lowestDenomination/denomination.value)
+			lowestDenomination = math.floor(lowestDenomination % denomination.value)
 		end
 
-		return table.concat(result, " ")
-	elseif type == "EPH" then
-		local lowestDenomination = wichitBeads/2
 
-		local mina = math.floor(lowestDenomination/4800)
-		local stater = math.floor((lowestDenomination - (mina * 4800))/96)
-		local derechmus = math.floor(lowestDenomination - (mina * 4800) - (stater*96))
-
-		local result = {}
-		if mina > 0 then
-			table.insert(result, mina .. "M")
-		end
-		if stater > 0 then
-			table.insert(result, "S" .. stater .. "|" .. derechmus .. "de")
-		else
-			table.insert(result, derechmus .. "de")
-		end
-
-		return table.concat(result, " ")
-	elseif type == "GEN" then
-		local lowestDenomination = wichitBeads/3
-
-		local ducat = math.floor(lowestDenomination/10000)
-		local forin = math.floor((lowestDenomination - (ducat*10000))/1000)
-		local livre = math.floor((lowestDenomination - (ducat*10000) - (forin*1000))/100)
-		local cent = math.floor(lowestDenomination - (ducat*10000) - (forin*1000) - (livre*100))
-
-		local resultTable = {}
-		if ducat > 0 then
-			table.insert(resultTable, ducat)
-		end
-		if forin > 0 then
-			table.insert(resultTable, forin)
-		end
-		if livre > 0 then
-			table.insert(resultTable, livre)
-		end
-		if cent > 0 then
-			table.insert(resultTable, cent)
-		end
-
-		local resultString = table.concat(resultTable, ",")
-
-		-- add denotation
-		if #resultTable == 4 then
-			resultString = resultString .. "Gd"
-		elseif #resultTable == 3 then
-			resultString = resultString .. "Gf"
-		elseif #resultTable == 2 then
-			resultString = resultString .. "Gl"
-		elseif #resultTable == 1 then
-			resultString = resultString .. "Gc"
-		end
-
-		return resultString
-	elseif type == "LAN" then
-		local lowestDenomination = wichitBeads/3
-
-		local hedgehog = math.floor(lowestDenomination/82944)
-		local sovereign = math.floor((lowestDenomination - (hedgehog * 82944))/6912)
-		local crown = math.floor((lowestDenomination - (hedgehog * 82944) - (sovereign * 6912))/576)
-		local shilling = math.floor((lowestDenomination - (hedgehog * 82944) - (sovereign * 6912) - (crown * 576))/48)
-		local penny = math.floor((lowestDenomination - (hedgehog * 82944) - (sovereign * 6912) - (crown * 576) - (shilling * 48))/4)
-		local farthing = math.floor(lowestDenomination - (hedgehog * 82944) - (sovereign * 6912) - (crown * 576) - (shilling * 48) - (penny * 4))
-
-		local resultTable = {}
-		table.insert(resultTable, hedgehog)
-		table.insert(resultTable, sovereign)
-		table.insert(resultTable, crown)
-		table.insert(resultTable, shilling)
-		table.insert(resultTable, penny)
-
-		-- change 0 into "-"
-		for index, value in ipairs(resultTable) do
-			if value == 0 then
-				resultTable[index] = "-"
+		if type == "AM" or type == "DJB" then
+			for _, value in ipairs(region.denominations) do
+				returnString = returnString .. value.name .. value.amount .. "." .. lowestDenomination
 			end
-		end
+		elseif type == "BP" then
+			for _, value in ipairs(region.denominations) do
+				if value.amount > 0 then
+					returnString = returnString .. value.amount .. value.name .. " "
+				end
+			end
+		elseif type == "EPH" then
+			local result = {}
+			if region.denominations[1].amount > 0 then
+				table.insert(result, region.denominations[1].amount .. "M ")
+			end
+			if region.denominations[2].amount > 0 then
+				table.insert(result, "S" .. region.denominations[2].amount .. "|")
+			end
+			table.insert(result, region.denominations[3].amount .. "de")
 
-		-- remove leading empty notation
-		local resultString = table.concat(resultTable, "|")
-		while string.match(resultString, "^%-|") do
-			resultString = string.gsub(resultString, "^%-|", "", 1)
-		end
+			returnString = table.concat(result, "")
+		elseif type == "GEN" then
+			local resultString = ""
+			for index, denomination in ipairs(region.denominations) do
+				if denomination.amount > 0 then
+					resultString = denomination.amount
+					for i = index+1, #region.denominations, 1 do
+						resultString = resultString .. "," .. region.denominations[i].amount
+					end
+					resultString = resultString .. denomination.name
+					break
+				end
+			end
+			returnString = resultString
+		elseif type == "LAN" then
+			local resultString = ""
+			for index, denomination in ipairs(region.denominations) do
+				if denomination.amount > 0 then
+					resultString = denomination.name .. " " .. denomination.amount
+					for i = index+1, #region.denominations, 1 do
+						resultString = resultString .. "|" .. region.denominations[i].amount
+					end
+					break
+				end
+			end
 
-		-- reset resultString if empty
-		if resultString == 0 then
-			resultString = ""
-		end
+			if lowestDenomination == 3 then
+				resultString = resultString .. " 3/4"
+			elseif lowestDenomination == 2 then
+				resultString = resultString .. " 1/2"
+			elseif lowestDenomination == 1 then
+				resultString = resultString .. " 1/4"
+			end
 
-		-- add denotation
-		local fooTable = string.toTable(resultString, "|")
-		if #fooTable == 5 then
-			resultString = "LH " .. resultString
-		elseif #fooTable == 4 then
-			resultString = "LSov " .. resultString
-		elseif #fooTable == 3 then
-			resultString = "LC " .. resultString
-		elseif #fooTable == 2 then
-			resultString = "Ls " .. resultString
-		else
-			resultString = "Lp " .. resultString
+			returnString = resultString:gsub("|0","|-")
+		elseif type == "KLA" then
+			returnString = region.denominations[1].amount .. "." .. lowestDenomination .. region.denominations[1].name
 		end
-
-		-- add farthing amount
-		if farthing == 3 then
-			resultString = resultString .. " 3/4"
-		elseif farthing == 2 then
-			resultString = resultString .. " 1/2"
-		elseif farthing == 1 then
-			resultString = resultString .. " 1/4"
-		end
-
-		if resultString == "Lp " then
-			resultString = ""
-		end
-
-		return resultString
-	elseif type == "KLA" then
-		local lowestDenomination = wichitBeads/5
-		return (lowestDenomination / 100) .. " dr"
+		return returnString
 	end
 end
 --#endregion
@@ -682,6 +612,15 @@ end
 		<trigger
 			enabled="y"
 			regexp="y"
+			match="\[(First Imperial Bank of the Empire)\]"
+			group="BankTrigger"
+			script="BankSetCurrent"
+			sequence="100"
+		>
+		</trigger>
+		<trigger
+			enabled="y"
+			regexp="y"
 			match="\[(Klatchian Continental Bank)\]"
 			group="BankTrigger"
 			script="BankSetCurrent"
@@ -701,7 +640,7 @@ end
 		<trigger
 			enabled="y"
 			regexp="y"
-			match="Your purse contains (.*)\."
+			match="^Your purse contains (.*)\.$"
 			group="BankTrigger"
 			script="BankSetPurse"
 			sequence="100"
