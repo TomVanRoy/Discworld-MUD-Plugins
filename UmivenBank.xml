@@ -10,43 +10,72 @@
    language="Lua"
    purpose="Bank Tracker"
    date_written="2022-05-22"
-   date_modified="2023-01-24"
+   date_modified="2023-02-11"
    save_state="y"
    requires="5.06"
-   version="1.04"
+   version="1.07"
    >
+<description trim="y">
+<![CDATA[
+********************************************************************
+*****                       Bank Tracker                       *****
+*****                      For Discworld                       *****
+*****                                                          *****
+*****  Keeps track of the amount of money in every bank.       *****
+*****  To use this plugin, go to each bank and get the         *****
+*****  'balance', which will then be stored.                   *****
+*****  You can recall the every stored bank and the amount     *****
+*****  typing 'bank' or 'banks'. This will give you an         *****
+*****  overview of every bank, the amount in it and a total    *****
+*****  across all bank accounts.                               *****
+*****  The plugin supports the use of multiple charaters.  By  *****
+*****  default, all bank data is stored in the "default" user. *****
+*****  To keep track of a new character's banks, you need to   *****
+*****  create it by using "bankuser <name>". This will create  *****
+*****  a new data set for the newly created user and will      *****
+*****  switch to it automatically. You can freely change       *****
+*****  between characters by using "bankuser". This will bring *****
+*****  up a menu of characters whose bank data has been saved. *****
+*****  You can delete bank data, as well as copy and paste     *****
+*****  bank data between characters from this same menu.       *****
+*****  As a small aside, you can easily deposit half of your   *****
+*****  currently held money. To do so, take out all the money  *****
+*****  you want to deposit in the bank and look at your        *****
+*****  inventory. Then type 'deposithalf' to deposit half of   *****
+*****  all the money you are currently holding (rounded down). *****
+********************************************************************
+]]>
+</description>
 </plugin>
 
 <script>
-<![CDATA[
--- ********************************************************************
--- *****                       Bank Tracker                       *****
--- *****                      For Discworld                       *****
--- *****                                                          *****
--- *****  Keeps track of the amount of money in every bank.       *****
--- *****  To use this plugin, go to each bank and get the         *****
--- *****  'balance', which will then be stored.                   *****
--- *****  You can recall the every stored bank and the amount     *****
--- *****  typing 'bank' or 'banks'. This will give you an         *****
--- *****  overview of every bank, the amount in it and a total    *****
--- *****  across all bank accounts.                               *****
--- *****  As a small aside, you can easily deposit half of your   *****
--- *****  currently held money. To do so, take out all the money  *****
--- *****  you want to deposit in the bank and look at your        *****
--- *****  inventory. Then type 'deposithalf' to deposit half of   *****
--- *****  all the money you are currently holding (rounded down). *****
--- ********************************************************************
-
---#region global variables
-local errorColour = "red"
-local bankNameColour = "orange"
-local moneyColour = "yellow"
-local totalColour = "#80FF80"
---#endregion
-
 local json = require("json")
 
---#region database
+----------------------
+-- GLOBAL VARIABLES --
+----------------------
+local configColour = {
+	["error"] = "red",
+	["blue"] = "#478be9",
+	["red"] = "#e978a6",
+	["green"] = "#92c402",
+	["cyan"] = "#90e4e0",
+	["yellow"] = "#fed093",
+}
+
+local colourBankName = configColour["red"]
+local colourCurrentUser = configColour["cyan"]
+local colourHyperlink = configColour["yellow"]
+local colourMoneyAM = configColour["cyan"]
+local colourMoneyLocal = configColour["blue"]
+local colourTotal = configColour["cyan"]
+local colourTotalString = configColour["green"]
+local colourUser = configColour["red"]
+
+
+--------------
+-- DATABASE --
+--------------
 local banksInfo = {
 	["Bing's First"] = {locations = "Bing's First Bank|branch of Bing's Bank|neat branch of Bing's bank", city = "Ankh-Morpork", streets = "Upper Broadway"},
 	["Lancrastian Farmers' Cooperative"] = {locations = "Lancrastian Farmers' Cooperative Bank", city = "Ankh-Morpork, Lancre, Ohulan Cutash", streets = "The Ridings, Lancre Town square, market"},
@@ -116,23 +145,21 @@ local regionInformation = {
 		}
 	}
 }
---#endregion
 
---#region General functions
+-------------
+-- GENERAL --
+-------------
 function string.addLeadingTrailing(str, max, fill, trailing)
-	if type(str) ~= "string" or type(max) ~= "number" or type(fill) ~= "string" then
-		Note("One of the entered variables is of the incorrect type")
-	else
-		-- set trailing or leading boolean optional parameter
-		local trail = trailing or false
-
-		local amountToAdd = max - #str
-		local returnString = str
-
-		returnString = trail and returnString .. string.rep(fill, amountToAdd) or string.rep(fill, amountToAdd) .. returnString
-
-		return returnString
-	end
+    if type(str) ~= "string" or type(max) ~= "number" or type(fill) ~= "string" then
+        Note("One of the entered variables is of the incorrect type")
+    else
+        local amountToAdd = max - #str
+        if trailing then
+            return str .. string.rep(fill, amountToAdd)
+        else
+            return string.rep(fill, amountToAdd) .. str
+        end
+    end
 end
 
 function string.isEmpty(s)
@@ -173,6 +200,20 @@ function table.reverse(t)
 	end
 end
 
+function table.valueList(t, val)
+	local returnTable = {}
+	if string.lower(val) == "key" then
+		for k, v in pairs(t) do
+			table.insert(returnTable, k)
+		end
+	else
+		for k, v in pairs(t) do
+			table.insert(returnTable, v[val])
+		end
+	end
+	return returnTable
+end
+
 function table.valueMaxStringLength(t)
 	local maxStringLength =  0
 	for key, value in pairs(t) do
@@ -182,32 +223,44 @@ function table.valueMaxStringLength(t)
 	end
 	return maxStringLength
 end
---#endregion
 
---#region Bank functions
-function BankDepositHalfMoney()
-	local moneyString = GetVariable("bankPurseContentsHalf")
-	Send("deposit " .. moneyString)
+
+------------
+-- PLUGIN --
+------------
+function OnPluginListChanged()
+	BankClearBadVariables()
 end
 
-function BankPrintAllInfo()
-	BankPrintAllBanks()
-	ColourNote(totalColour, "", "Total: " .. BankGetTotalMoney())
+function OnPluginConnect()
+	BankClearBadVariables()
 end
 
+function OnPluginInstall()
+	BankClearBadVariables()
+end
+
+function OnPluginEnable()
+	BankClearBadVariables()
+end
+
+
+----------
+-- BANK --
+----------
 function BankPrintBank(bankName, amount, currency)
 	if type(bankName) ~= "string" then
-		ColourNote(errorColour, "", "BankPrintBank error: bankName is not of type string")
+		ColourNote(configColour["error"], "", "BankPrintBank error: bankName is not of type string")
 	end
 	if type(amount) ~= "number" then
-		ColourNote(errorColour, "", "BankPrintBank error: amount is not of type number")
+		ColourNote(configColour["error"], "", "BankPrintBank error: amount is not of type number")
 	end
 	if type(currency) ~= "string" then
 		error("BankPrintBank error: currency is not of type string")	
 	end
 
 	if type(bankName) == "string" and type(amount) == "number" and type(currency) == "string" then
-		local bankArray = BankGetBankArray()
+		local bankArray = BankGetCurrentUserBankArray()
 
 		-- Get max length of bank names
 		local bankNameTable = {}
@@ -239,14 +292,14 @@ function BankPrintBank(bankName, amount, currency)
 		local localAmount = WichitBeadsToCurrency(amount, currency)
 		local amAmount = WichitBeadsToCurrency(amount, "AM")
 		amAmount = string.gsub(amAmount, "A%$", "")
-		ColourTell(bankNameColour, "", string.addLeadingTrailing(bankName, bankNameStringMaxLength, " ", true))
+		ColourTell(colourBankName, "", string.addLeadingTrailing(bankName, bankNameStringMaxLength, " ", true))
 		Tell(" ")
 
 		if currency ~= "" then
-			ColourTell(moneyColour, "", string.addLeadingTrailing(localAmount, localStringMaxLength, " ", true))
+			ColourTell(colourMoneyLocal, "", string.addLeadingTrailing(localAmount, localStringMaxLength, " ", true))
 			Tell(" (")
-			ColourTell(moneyColour, "", "A$")
-			ColourTell(moneyColour, "", string.addLeadingTrailing(amAmount, amStringMaxLength - 2, " ", false))
+			ColourTell(colourMoneyAM, "", "A$")
+			ColourTell(colourMoneyAM, "", string.addLeadingTrailing(amAmount, amStringMaxLength - 2, " ", false))
 			Tell(")")
 		end
 		Note("")
@@ -254,7 +307,7 @@ function BankPrintBank(bankName, amount, currency)
 end
 
 function BankPrintAllBanks()
-	local bankArray = BankGetBankArray()
+	local bankArray = BankGetCurrentUserBankArray()
 	if type(bankArray) == "table" then
 		local bankTable = {}
 		for key, value in pairs(bankArray) do
@@ -268,80 +321,89 @@ function BankPrintAllBanks()
 		error("BankPrintAllBanks error: bankArray is not of type table")
 	end
 end
---#endregion
 
---#region Variable functions
-
---#region Get
-function BankGetBankArray()
-    local bankArray
-    local bankBalancesString = GetVariable("bankBalances")
-
-    local success, res = pcall(json.decode, bankBalancesString);
-    if success then
-        bankArray = res
-    else
-        bankArray = {}
-        for bankInfoKey, bankInfoValue in pairs(banksInfo) do
-            bankArray[bankInfoKey] = {
-                amount = 0,
-                currency = "",
-            }
-        end
-    end
-    return bankArray
-end
--- end
-
-function BankGetCurrent()
-	local result = GetVariable("bankCurrent") or ""
-	return result
-end
-
-function BankGetTotalMoney()
-	local bankArray = BankGetBankArray()
-	local totalWichitBeads = 0
-
-	for _, value in pairs(bankArray) do
-		totalWichitBeads = totalWichitBeads + value.amount
-	end
-	return WichitBeadsToCurrency(totalWichitBeads, "AM")
-end
---#endregion
-
---#region Set
-function BankSetAmount(name, output, wildcards)
-	local bankArray = BankGetBankArray()
-	local bankName = BankGetCurrent()
-	local localMoney = wildcards[2]
-	local currencyType = CurrencyGetType(localMoney)
-	local lowestDenomination = CurrencyToLowestDenomination(localMoney, currencyType)
-	local wichitBeads = CurrencyToWichitBeads(lowestDenomination, currencyType)
-
-	if bankArray[bankName] then
-		bankArray[bankName].amount = wichitBeads
-		bankArray[bankName].currency = currencyType
-	else
-		bankArray[bankName] = { amount = wichitBeads, currency = currencyType }
-	end
-
-	BankSetBankBalances(bankArray)
-end
-
-function BankSetBankBalances(bankArray)
-	if type(bankArray) == "table" then
-		SetVariable("bankBalances", json.encode(bankArray))
-	else
-		Note("BankSetBankBalances error: bankArray is not of type table.")
+function BankClearBadVariables()
+	if not BankCheckBankArrayStructure(BankGetBankArray()) then
+		DeleteVariable("bankBalances")
+		ColourNote(configColour["error"], "", "The structure of the bankBalances variable was incorrect and has been deleted. Please visit banks again to store their balances in the bankBalances variable.")
 	end
 end
 
-function BankSetCurrent(name, output, wildcards)
+function BankPrintAllInfo()
+	BankPrintAllBanks()
+	ColourTell(colourTotalString, "", "Total: ")
+	ColourTell(colourTotal, "", BankGetTotalMoney())
+	Note()
+end
+
+function BankShowUsers()
+	ColourNote(configColour["green"], "", "Bank users:")
+	for _, value in pairs(BankGetKnownUsers()) do
+		if value == BankGetCopyUser() then
+			NoteStyle(4)
+		end
+		if value == BankGetUser() then
+			ColourTell(colourCurrentUser, "", value)
+		else
+			ColourTell(colourUser, "", value)
+		end
+		NoteStyle(0)
+		Tell(" ")
+		Tell("[")
+		if value == BankGetUser() then
+			ColourTell(colourHyperlink, "", "Change")
+		else
+			Tell(Hyperlink("BankUser " .. value, "Change", "Change to " .. value, colourHyperlink, "black", 0))
+		end
+		Tell(" | ")
+		Tell(Hyperlink("BankDeleteUser " .. value, "Delete", "Delete bank data of " .. value, colourHyperlink, "black", 0))
+		Tell(" | ")
+		Tell(Hyperlink("BankCopy " .. value, "Copy", "Copy bank data of " .. value, colourHyperlink, "black", 0))
+		if value == BankGetCopyUser() or string.isEmpty(BankGetCopyUser()) then
+		else
+			Tell(" | ")
+			Tell(Hyperlink("BankPaste " .. value, "Paste", "Paste bank data to " .. value, colourHyperlink, "black", 0))	
+		end
+		Tell("]")
+		Note()
+	end
+end
+
+function BankCheckBankArrayStructure(t)
+	if type(t) ~= "table" then
+	  return false
+	end
+
+	for charName, charData in pairs(t) do
+	  if type(charData) ~= "table" then
+		return false
+	  end
+
+	  for bankName, bankData in pairs(charData) do
+		if type(bankData) ~= "table" then
+		  return false
+		end
+
+		if bankData.amount == nil or type(bankData.amount) ~= "number" then
+		  return false
+		end
+
+		if bankData.currency == nil or type(bankData.currency) ~= "string" then
+		  return false
+		end
+	  end
+	end
+
+	return true
+end
+
+-- TRIGGER
+function BankTriggerSetCurrentBank(name, output, wildcards)
 	local currentBank = wildcards[1]
 	if type(currentBank) == "string" then
 		for key, value in pairs(banksInfo) do
 			if string.match(value.locations, currentBank) then
-				SetVariable("bankCurrent", key)
+				BankSetCurrent(key)
 				break
 			end
 		end
@@ -350,44 +412,215 @@ function BankSetCurrent(name, output, wildcards)
 	end
 end
 
-function BankSetPurse(name, output, wildcards)
-	local moneyString = wildcards[1]
-	if type(moneyString) == "string" then
-		SetVariable("bankPurseContents", "")
-		SetVariable("bankPurseContentsHalf", "")
+function BankTriggerSetCurrentBankAmount(name, output, wildcards)
+	local bankArray = BankGetCurrentUserBankArray()
+	local bankName = BankGetCurrent()
+	local localMoney = wildcards[2]
+	
+	local currencyType, wichitBeads
 
-		if moneyString ~= "only moths" then
-			moneyString = string.gsub(moneyString, " and ", ", ")
-			while string.find(moneyString, "one") do
-				moneyString = string.gsub(moneyString, "one", "1")
-			end
-			SetVariable("bankPurseContents", moneyString)
-			local moneyTable = string.toTable(moneyString, ", ")
-			for i = 1, #moneyTable, 1 do
-				local newAmount = string.match(moneyTable[i], "%d+")
-				if (newAmount*1 > 1) then
-					moneyTable[i] = string.gsub(moneyTable[i], "%d+", math.floor(newAmount/2))
-				end
-			end
-			SetVariable("bankPurseContentsHalf", table.concat(moneyTable,", "))
-		end
+	if localMoney == "nothing" then
+		wichitBeads = 0
+		currencyType = ""
 	else
-		ColourNote("red", "", "BankSetPurse error: Matched is not of type string")
+		currencyType = CurrencyGetType(localMoney)
+		local lowestDenomination = CurrencyToLowestDenomination(localMoney, currencyType)
+		wichitBeads = CurrencyToWichitBeads(lowestDenomination, currencyType)
+	end
+	bankArray[bankName] = { amount = wichitBeads, currency = currencyType }
+	BankSetCurrentUserBankBalances(bankArray)
+end
+
+-- ALIAS
+function BankAliasBankSetUser(name, output, wildcards)
+	local user = wildcards[1]
+	BankSetCurrentUser(user)
+	Tell("Changed to the bank data of ")
+	ColourTell(colourCurrentUser, "", user)
+	Note(".")
+end
+
+function BankAliasBankChangeUser(name, output, wildcards)
+	BankShowUsers()
+end
+
+function BankAliasBankCopy(name, output, wildcards)
+	local fromUser = wildcards[1]
+	BankSetCopyUser(fromUser)
+
+	Tell("Copied the banks from ")
+	if (BankGetUser() == string.lower(fromUser)) then
+		ColourTell(colourCurrentUser, "", fromUser)
+	else
+		ColourTell(colourUser, "", fromUser)
+	end
+	Tell(".")
+	Note()
+
+	BankShowUsers()
+end
+
+function BankAliasBankDeleteUser(name, output, wildcards)
+	local user = string.lower(wildcards[1])
+	local currentUser = BankGetUser()
+	BankDeleteUser(user)
+	Tell("Deleted bank data for ")
+	ColourTell(colourUser, "", user)
+	Tell(".")
+	if currentUser == user then
+		SetVariable("bankUser", "default")
+		Tell(" Reverted back to ")
+		ColourTell(colourCurrentUser, "", "default")
+		Tell(" user.")
+	end
+	Note()
+end
+
+function BankAliasBankPaste(name, output, wildcards)
+	local toUser = string.lower(wildcards[1])
+	local fromUser = BankGetCopyUser()
+	BankCopyBankDataToUser(toUser, fromUser)
+
+	Tell("Placed bank data from ")
+	if (BankGetUser() == string.lower(fromUser)) then
+		ColourTell(colourCurrentUser, "", fromUser)
+	else
+		ColourTell(colourUser, "", fromUser)
+	end
+	Tell(" into ")
+	if (BankGetUser() == string.lower(toUser)) then
+		ColourTell(colourCurrentUser, "", toUser)
+	else
+		ColourTell(colourUser, "", toUser)
+	end
+	Tell(".")
+	Note()
+end
+
+function BankAliasBankPrintAllInfo(name, output, wildcards)
+	BankPrintAllInfo()
+end
+
+-- VARIABLE
+-- get
+function BankGetBankArray()
+    local result = {}
+    local user = BankGetUser()
+    local bankBalancesString = GetVariable("bankBalances") or ""
+    local data = json.decode(bankBalancesString) or {}
+
+	data[user] = data[user] or {}
+    for bankInfoKey, _ in pairs(banksInfo) do
+        data[user][bankInfoKey] = data[user][bankInfoKey] or {amount = 0, currency = ""}
+    end
+    result = data
+    return result
+end
+
+function BankGetKnownUsers(returnType)
+	local bankArray = BankGetBankArray()
+	local userList = table.valueList(bankArray, "key")
+	table.sort(userList, function (k1,k2) return string.lower(k1) < string.lower(k2) end)
+	if returnType == "json" then
+		return json.encode(userList)
+	end
+	return userList
+end
+
+function BankGetCopyUser()
+	return GetVariable("bankCopyUser") or ""
+end
+
+function BankGetCurrent()
+	local result = GetVariable("bankCurrent") or ""
+	return result
+end
+
+function BankGetCurrentUserBankArray()
+    local user = BankGetUser()
+    return BankGetBankArray()[user]
+end
+
+function BankGetTotalMoney()
+	local bankArray = BankGetCurrentUserBankArray()
+	local totalWichitBeads = 0
+	for _, value in pairs(bankArray) do
+		totalWichitBeads = totalWichitBeads + value.amount
+	end
+	return WichitBeadsToCurrency(totalWichitBeads, "AM")
+end
+
+function BankGetUser()
+	return GetVariable("bankUser") or "default"
+end
+
+-- set
+function BankCopyBankDataToUser(toUser, fromUser)
+	local bankContents = BankGetBankArray() or {}
+	bankContents[toUser] = bankContents[fromUser]
+	BankSetBankBalances(bankContents)
+	BankSetCopyUser("")
+end
+
+function BankSetBankBalances(bankArray)
+	if type(bankArray) == "table" then
+		SetVariable("bankBalances", json.encode(bankArray))
+	else
+		ColourNote(configColour["error"], "", "BankSetBankBalances error: bankArray is not of type table.")
 	end
 end
---#endregion
 
---#region reset
-function BankResetBalances()
+function BankSetCopyUser(user)
+	SetVariable("bankCopyUser", string.lower(user))
+end
+
+function BankSetCurrent(bank)
+	if type(bank) == "string" then
+		SetVariable("bankCurrent", bank)
+	else
+		ColourNote(configColour["error"], "", "BankSetCurrent error: bank is not of type string.")
+	end
+end
+
+function BankSetCurrentUserBankBalances(currentUserBankArray)
+	if type(currentUserBankArray) == "table" then
+		local bankArray = BankGetBankArray()
+		local currentUser = BankGetUser()
+		bankArray[currentUser] = currentUserBankArray
+		SetVariable("bankBalances", json.encode(bankArray))
+	else
+		Note("BankSetBankBalances error: currentUserBankArray is not of type table.")
+	end
+end
+
+function BankSetCurrentUser(user)
+	if type(user) == "string" then
+		SetVariable("bankUser", string.lower(user))
+	else
+		ColourNote(configColour["error"], "", "BankSetCurrentUser error: user is not of type string.")
+	end
+	
+end
+
+-- delete
+function BankAliasBankDeleteBalances()
 	DeleteVariable("bankBalances")
-	local bankArray = BankGetBankArray()
+	local bankArray = BankGetCurrentUserBankArray()
 	BankSetBankBalances(bankArray)
 end
---#endregion
 
---#endregion
+function BankDeleteUser(user)
+	user = string.lower(user)
+	local bankArray = BankGetBankArray()
+	bankArray[user] = nil
+	BankSetBankBalances(bankArray)
+end
 
---#region Currency functions
+
+--------------
+-- CURRENCY --
+--------------
+currency functions
 function CurrencyGetType(fullMoneyString)
     for currencyType, regexes in pairs(currencyTypes) do
         for _, regex in pairs(regexes) do
@@ -420,7 +653,7 @@ function CurrencyToLowestDenomination(money, type)
 		local saveloy = string.match(money, "(%d+)s") or 0
 		amount = (tonumber(rhinu)*120) + tonumber(saveloy)
 	elseif type == "LAN" then
-		local multiplicationTable = {82944,6912,576,48,4}
+		local multiplicationTable = table.valueList(regionInformation[type].denominations, "value")
 		if (string.match(money, "(%d+)/[24]")) then
 			amount = tonumber(string.match(money, "(%d+)/4")) or tonumber(string.match(money, "(%d+)/2") or 0) * 2
 		end
@@ -485,10 +718,13 @@ function WichitBeadsToCurrency(wichitBeads, type)
 			lowestDenomination = math.floor(lowestDenomination % denomination.value)
 		end
 
-
 		if type == "AM" or type == "DJB" then
 			for _, value in ipairs(region.denominations) do
-				returnString = returnString .. value.name .. value.amount .. "." .. lowestDenomination
+				returnString = returnString .. value.name .. value.amount .. "."
+				if string.len(tostring(lowestDenomination)) == 1 then
+					returnString = returnString .. "0"
+				end
+				returnString = returnString .. lowestDenomination
 			end
 		elseif type == "BP" then
 			for _, value in ipairs(region.denominations) do
@@ -532,12 +768,10 @@ function WichitBeadsToCurrency(wichitBeads, type)
 				end
 			end
 
-			if lowestDenomination == 3 then
-				resultString = resultString .. " 3/4"
+			if lowestDenomination == 3 or lowestDenomination == 1 then
+				resultString = resultString .. " " .. lowestDenomination .. "/4"
 			elseif lowestDenomination == 2 then
 				resultString = resultString .. " 1/2"
-			elseif lowestDenomination == 1 then
-				resultString = resultString .. " 1/4"
 			end
 
 			returnString = resultString:gsub("|0","|-")
@@ -547,7 +781,64 @@ function WichitBeadsToCurrency(wichitBeads, type)
 		return returnString
 	end
 end
---#endregion
+
+
+-----------
+-- PURSE --
+-----------
+-- TRIGGER
+function BankTriggerSetPurse(name, output, wildcards)
+	local moneyString = wildcards[1]
+	if type(moneyString) == "string" then
+		PurseSetPurseContents("")
+		PurseSetPurseContentsHalf("")
+
+		if moneyString ~= "only moths" then
+			moneyString = string.gsub(moneyString, " and ", ", ")
+			moneyString = string.gsub(moneyString, "one", "1")
+			PurseSetPurseContents(moneyString)
+			local moneyTable = string.toTable(moneyString, ", ")
+
+			for i, value in ipairs(moneyTable) do
+				local newAmount = string.match(value, "%d+")
+				if (tonumber(newAmount) > 1) then
+				  moneyTable[i] = string.gsub(value, "%d+", math.floor(newAmount/2))
+				end
+			end
+			
+			PurseSetPurseContentsHalf(table.concat(moneyTable,", "))
+		end
+	else
+		ColourNote(configColour["error"], "", "PurseSetPurse error: Matched is not of type string")
+	end
+end
+
+-- ALIAS
+function BankAliasPurseDepositHalfMoney()
+	local moneyString = GetVariable("bankPurseContentsHalf")
+	Send("deposit " .. moneyString)
+end
+
+-- VARIABLE
+-- get
+function PurseGetPurseContents()
+	local result = GetVariable("bankPurseContents") or ""
+	return result
+end
+
+function PurseGetPurseContentsHalf()
+	local result = GetVariable("bankPurseContentsHalf") or ""
+	return result
+end
+
+-- set
+function PurseSetPurseContents(purseContents)
+	SetVariable("bankPurseContents", purseContents)
+end
+
+function PurseSetPurseContentsHalf(purseContentsHalf)
+	SetVariable("bankPurseContentsHalf", purseContentsHalf)
+end
 ]]>
 </script> 
 
@@ -560,7 +851,7 @@ end
 			match="(You have|This gives a total of) (.*) in your account( after the withdrawal)?\."
 			name="lblBankSetAmount"
 			group="BankTrigger"
-			script="BankSetAmount"
+			script="BankTriggerSetCurrentBankAmount"
 			sequence="100"
 		>
 		</trigger>
@@ -569,7 +860,7 @@ end
 			regexp="y"
 			match="\[(Bing\'s First Bank)\]"
 			group="BankTrigger"
-			script="BankSetCurrent"
+			script="BankTriggerSetCurrentBank"
 			sequence="100"
 		>
 		</trigger>
@@ -578,7 +869,7 @@ end
 			regexp="y"
 			match="\[(branch of Bing\'s Bank)\]"
 			group="BankTrigger"
-			script="BankSetCurrent"
+			script="BankTriggerSetCurrentBank"
 			sequence="100"
 		>
 		</trigger>
@@ -587,7 +878,7 @@ end
 			regexp="y"
 			match="\[(neat branch of Bing\'s bank)\]"
 			group="BankTrigger"
-			script="BankSetCurrent"
+			script="BankTriggerSetCurrentBank"
 			sequence="100"
 		>
 		</trigger>
@@ -596,7 +887,7 @@ end
 			regexp="y"
 			match="\[(Lancrastian Farmers\' Cooperative Bank)\]"
 			group="BankTrigger"
-			script="BankSetCurrent"
+			script="BankTriggerSetCurrentBank"
 			sequence="100"
 		>
 		</trigger>
@@ -605,7 +896,7 @@ end
 			regexp="y"
 			match="\[(branch of the First Imperial Bank of the Empire)\]"
 			group="BankTrigger"
-			script="BankSetCurrent"
+			script="BankTriggerSetCurrentBank"
 			sequence="100"
 		>
 		</trigger>
@@ -614,7 +905,7 @@ end
 			regexp="y"
 			match="\[(First Imperial Bank of the Empire)\]"
 			group="BankTrigger"
-			script="BankSetCurrent"
+			script="BankTriggerSetCurrentBank"
 			sequence="100"
 		>
 		</trigger>
@@ -623,16 +914,16 @@ end
 			regexp="y"
 			match="\[(Klatchian Continental Bank)\]"
 			group="BankTrigger"
-			script="BankSetCurrent"
+			script="BankTriggerSetCurrentBank"
 			sequence="100"
 		>
 		</trigger>
 		<trigger
 			enabled="y"
 			regexp="y"
-			script="BankSetCurrent"
-			group="BankTrigger"
 			match="\[(Genua National Bank)\]"
+			group="BankTrigger"
+			script="BankTriggerSetCurrentBank"
 			sequence="100"
 		>
 		</trigger>
@@ -642,7 +933,7 @@ end
 			regexp="y"
 			match="^Your purse contains (.*)\.$"
 			group="BankTrigger"
-			script="BankSetPurse"
+			script="BankTriggerSetPurse"
 			sequence="100"
 		>
 		</trigger>
@@ -656,7 +947,7 @@ end
 		ignore_case="y"
 		match="^banks?$"
 		group="BankAlias"
-		script="BankPrintAllInfo"
+		script="BankAliasBankPrintAllInfo"
 		sequence="100"
 	>
 	</alias>
@@ -666,7 +957,7 @@ end
 		ignore_case="y"
 		match="banks?reset"
 		group="BankAlias"
-		script="BankResetBalances"
+		script="BankAliasBankDeleteBalances"
 		sequence="100"
 	>
 	</alias>
@@ -676,7 +967,73 @@ end
 		ignore_case="y"
 		match="^deposithalf$"
 		group="BankAlias"
-		script="BankDepositHalfMoney"
+		script="BankAliasPurseDepositHalfMoney"
+		sequence="100"
+	>
+	</alias>
+	<alias
+		enabled="y"
+		ignore_case="y"
+		regexp="y"
+		keep_evaluating="y"
+		match="^BankUsers?$"
+		group="BankAlias"
+		script="BankAliasBankChangeUser"
+		sequence="100"
+	>
+	</alias>
+	<alias
+		enabled="y"
+		ignore_case="y"
+		regexp="y"
+		keep_evaluating="y"
+		match="^BankUsers? (\w+).*$"
+		group="BankAlias"
+		script="BankAliasBankSetUser"
+		sequence="100"
+	>
+	</alias>
+	<alias
+		enabled="y"
+		ignore_case="y"
+		regexp="y"
+		keep_evaluating="y"
+		match="^BankDeleteUser (\w+).*$"
+		group="BankAlias"
+		script="BankAliasBankDeleteUser"
+		sequence="100"
+	>
+	</alias>
+	<alias
+		enabled="y"
+		ignore_case="y"
+		regexp="y"
+		keep_evaluating="y"
+		match="^ChangeUser (\w+)$"
+		group="BankAlias"
+		script="BankAliasBankSetUser"
+		sequence="100"
+	>
+	</alias>
+	<alias
+		enabled="y"
+		ignore_case="y"
+		regexp="y"
+		keep_evaluating="y"
+		match="^BankCopy (\w+)"
+		group="BankAlias"
+		script="BankAliasBankCopy"
+		sequence="100"
+	>
+	</alias>
+	<alias
+		enabled="y"
+		ignore_case="y"
+		regexp="y"
+		keep_evaluating="y"
+		match="^BankPaste (\w+)$"
+		group="BankAlias"
+		script="BankAliasBankPaste"
 		sequence="100"
 	>
 	</alias>

@@ -49,16 +49,16 @@ function string.addFill(str, max, fill)
 end
 
 function string.addLeadingTrailing(str, max, fill, trailing)
-	if type(str) ~= "string" or type(max) ~= "number" or type(fill) ~= "string" or type(trailing) ~= "boolean" then
-		Note("One of the entered variables is of the incorrect type")
-	else
-		local amountToAdd = max - string.len(str)
-		local returnString = str
-		for i = 1, amountToAdd, 1 do
-			returnString = returnString .. fill
-		end
-		return returnString
-	end
+    if type(str) ~= "string" or type(max) ~= "number" or type(fill) ~= "string" then
+        Note("One of the entered variables is of the incorrect type")
+    else
+        local amountToAdd = max - #str
+        if trailing then
+            return str .. string.rep(fill, amountToAdd)
+        else
+            return string.rep(fill, amountToAdd) .. str
+        end
+    end
 end
 
 function table.contains(table, match, caseSensitive)
