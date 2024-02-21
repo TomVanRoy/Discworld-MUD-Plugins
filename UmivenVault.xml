@@ -21,28 +21,31 @@
 *****                      Vault Tracker                       *****
 *****                      For Discworld                       *****
 *****                                                          *****
-*****  Keeps track of the all items in your vaults. To use     *****
-*****  this plugin, go to each vault and look at the items in  *****
-*****  each vault. The items will then be stored per vault.    *****
-*****  "vault" or "vaults" returns a list of vaults, along     *****
-*****  with options to see its contents (if it has any). If    *****
-*****  you also have quow's minimap plugin activated, it will  *****
-*****  have a button to speedwalk to it.                       *****
-*****  "vault <item>" or "vaults <item>" will return a list    *****
-*****  of vaults that contain the specified item.              *****
-*****  "vaultall" or "vaultsall" will return a combined list   *****
-*****  of every item and the amount of it you have across all  *****
+*****  Keeps track of the all items in your vaults and         *****
+*****  deluded containers. To use this plugin, go to each      *****
+*****  vault and look at the items in each vault and look in   *****
+*****  each deluded container. The items will then be stored   *****
+*****  per vault/container. By default, it will store all      *****
+*****  data in the "default" user.                             *****
+*****  "vault" or "vaults": This will give you an overview of  *****
+*****  the current selected character's vaults/containers      *****
+*****  with the option to show its contents (if there is any   *****
+*****  stored). If you also have quow's minimap plugin         *****
+*****  activated, it will have a button to speedwalk to        *****
 *****  vaults.                                                 *****
-*****                                                          *****
-*****  "vaultusers" will show you all recorder character and   *****
-*****  allow you to switch between them, copy and paste the    *****
-*****  vault contents between characters, and delete           *****
-*****  characters.                                             *****
+*****  "vault <item>" or "vaults <item>" returns all           *****
+*****  vaults/containers that contains the specified item.     *****
+*****  "vaultall" or "vaultsall" gives you a complete list of  *****
+*****  all items stored across all of your current selected    *****
+*****  character's vaults and containers.                      *****
+*****  "vaultuser" or "vaultusers" gives a list of all known   *****
+*****  users and allows you to change between them, delete     *****
+*****  them, and copy/paste data between them.                 *****
 *****  "vaultuser <username>" will add a new character whose   *****
 *****  vault can be recorded.                                  *****
 *****  Note: you need to look at the contents of at least      *****
-*****  one vault before the new character and its information  *****
-*****  will be saved.                                          *****
+*****  one vault/container before the new character and its    *****
+*****  information will be saved.                              *****
 ********************************************************************
 ]]>
 </description>
