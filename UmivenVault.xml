@@ -10,10 +10,10 @@
    language="Lua"
    purpose="Vault Tracker"
    date_written="2022-05-27"
-   date_modified="2024-02-20"
+   date_modified="2024-02-21"
    save_state="y"
    requires="5.06"
-   version="1.10"
+   version="1.11"
    >
 <description trim="y">
 <![CDATA[
@@ -21,29 +21,28 @@
 *****                      Vault Tracker                       *****
 *****                      For Discworld                       *****
 *****                                                          *****
-*****  Hooks into COWBAR (https://quow.co.uk/minimap.php)      *****
-*****                                                          *****
 *****  Keeps track of the all items in your vaults. To use     *****
 *****  this plugin, go to each vault and look at the items in  *****
 *****  each vault. The items will then be stored per vault.    *****
-*****  'vault' or 'vaults' returns a list of vaults, along     *****
-*****  with options to see its contents (if it has any) and a  *****
-*****  button to speedwalk to it.                              *****
-*****  'vault <item>' or 'vaults <item>' will return a list of *****
-*****  vaults that contain the specified item.                 *****
-*****  'vaultall' or 'vaultsall' will return a combined list   *****
+*****  "vault" or "vaults" returns a list of vaults, along     *****
+*****  with options to see its contents (if it has any). If    *****
+*****  you also have quow's minimap plugin activated, it will  *****
+*****  have a button to speedwalk to it.                       *****
+*****  "vault <item>" or "vaults <item>" will return a list    *****
+*****  of vaults that contain the specified item.              *****
+*****  "vaultall" or "vaultsall" will return a combined list   *****
 *****  of every item and the amount of it you have across all  *****
 *****  vaults.                                                 *****
 *****                                                          *****
-*****  'vaultusers' will show you all recorder character and   *****
+*****  "vaultusers" will show you all recorder character and   *****
 *****  allow you to switch between them, copy and paste the    *****
 *****  vault contents between characters, and delete           *****
 *****  characters.                                             *****
-*****  'vaultuser <username>' will add a new character whose   *****
+*****  "vaultuser <username>" will add a new character whose   *****
 *****  vault can be recorded.                                  *****
-*****  Note: you needd to look at the contents of at least one *****
-*****  vault before the new character and its information will *****
-*****  be saved.                                               *****
+*****  Note: you need to look at the contents of at least      *****
+*****  one vault before the new character and its information  *****
+*****  will be saved.                                          *****
 ********************************************************************
 ]]>
 </description>
@@ -53,8 +52,7 @@
 <![CDATA[
 local json = require "json"
 
-
---#region Global Variables
+--#region Global Values
 local configColour = {
 	["error"] = "red",
 	["blue"] = "#478be9",
@@ -176,8 +174,16 @@ local vaultFullStates = {
 		percentage = "25",
 		hexColour = "#007fff",
 	},
+	["over a quarter full with"] = {
+		percentage = "30",
+		hexColour = "#007fff",
+	},
 	["about half full with"] = {
 		percentage = "50",
+		hexColour = "#0040ff",
+	},
+	["over half full with"] = {
+		percentage = "55",
 		hexColour = "#0040ff",
 	},
 	["about three-quarters full with"] = {
@@ -955,7 +961,7 @@ function DecToHex(decimal)
 end
 
 function HexToDec(hex)
-    return tonumber(hex, 16)
+	return tonumber(hex, 16)
 end
 
 function HexToRGB(hex)
@@ -970,37 +976,46 @@ function HexToRGB(hex)
 end
 
 function IsHexColor(str)
-    return string.match(str, "^#?[%da-fA-F][%da-fA-F][%da-fA-F][%da-fA-F][%da-fA-F][%da-fA-F]$") ~= nil
+	return string.match(str, "^#?[%da-fA-F][%da-fA-F][%da-fA-F][%da-fA-F][%da-fA-F][%da-fA-F]$") ~= nil
+end
+
+function keyExistsInArray(key, array)
+    for k, _ in pairs(array) do
+        if k == key then
+            return true
+        end
+    end
+    return false
 end
 
 function math.round(num)
-    local decimal = num - math.floor(num)
-    if decimal >= 0.5 then
-        return math.ceil(num)
-    else
-        return math.floor(num)
-    end
+	local decimal = num - math.floor(num)
+	if decimal >= 0.5 then
+		return math.ceil(num)
+	else
+		return math.floor(num)
+	end
 end
 
 function string.fill(str, max, fill, trailing)
-    if type(str) ~= "string" or type(max) ~= "number" or type(fill) ~= "string" then
-        Note("One of the entered variables is of the incorrect type")
-    else
-        local amountToAdd = max - #str
-        if trailing then
-            return str .. string.rep(fill, amountToAdd)
-        else
-            return string.rep(fill, amountToAdd) .. str
-        end
-    end
+	if type(str) ~= "string" or type(max) ~= "number" or type(fill) ~= "string" then
+		Note("One of the entered variables is of the incorrect type")
+	else
+		local amountToAdd = max - #str
+		if trailing then
+			return str .. string.rep(fill, amountToAdd)
+		else
+			return string.rep(fill, amountToAdd) .. str
+		end
+	end
 end
 
 function string.isEmpty(s)
-    local success, msg = pcall(function() assert(type(s) == "string") end)
-    if not success then
-        Note(msg)
-    end
-    return s == nil or #s == 0
+	local success, msg = pcall(function() assert(type(s) == "string") end)
+	if not success then
+		Note(msg)
+	end
+	return s == nil or #s == 0
 end
 
 function string.replaceLast(originalString, matchString, replaceString)
@@ -1046,11 +1061,22 @@ function table.contains(t, match)
 	return false
 end
 
+function table.containsKey(t, key)
+	for k, _ in pairs(t) do
+        if k == key then
+            return true
+        end
+    end
+    return false
+end
+
 function table.filter(table,prop,val)
 	local returnTable = {}
 	for key, value in pairs(table) do
-		if string.lower(value[prop]) == string.lower(val) then
-			returnTable[key] = value
+		if value[prop] then
+			if string.lower(value[prop]) == string.lower(val) then
+				returnTable[key] = value
+			end
 		end
 	end
 	return returnTable
@@ -1066,7 +1092,7 @@ function table.isEmpty(t)
 end
 
 function table.keyToIndexTable(t)
-    local result
+	local result
 	if type(t) == "table" then
 		result = {}
 		for k, v in pairs(t) do
@@ -1082,7 +1108,7 @@ function table.keyToIndexTable(t)
 	elseif type(t) == "string" then
 		result = t
 	end
-    return result
+	return result
 end
 
 function table.length(t)
@@ -1350,14 +1376,14 @@ end
 function VaultCheckVaultArrayStructure(t)
 	-- check if table is not nil and has at least one user key
 	if t == nil or next(t) == nil then
-		return false
+	return false
 	end
 
 	-- iterate through user keys
 	for _, userValue in pairs(t) do
 		-- check if userValue is a table
 		if type(userValue) ~= "table" then
-			return false
+		return false
 		end
 
 		-- iterate through vault keys
@@ -1378,7 +1404,6 @@ function VaultCheckVaultArrayStructure(t)
 			end
 		end
 	end
-
 	-- if all checks passed, return true
 	return true
 end
@@ -1456,8 +1481,15 @@ function VaultShowUsers()
 end
 
 -- TRIGGER
+function VaultTriggerContainerContentsTest()
+	local vaultFullState = "about three-quarters full with"
+	local vaultContentsString = "two huge fruit covered hats, a boxing ring, five gold-trimmed obis, a black cotton dress, two white smocks, a pair of kogake tabi, three old shirts, two pairs of okobo, two pairs of cotton socks, a dark green obi, a dusty blue himation, three pairs of laced sandals, a dirty grey robe, two dark blue tricorns, two abacuses, two black bandanas, two AMCW badges, two pairs of peach pumps, a black silk bandana, two leaf-bladed daggers, a bright copper necklet, two black sowrongs, two pairs of lacy bloomers, fifteen yellow ribbons, a startling green dress, a short-sleeved white cotton shirt, a horsehair-crested bronze helm, a pair of rough hessian trousers, a leather protective, a pair of purple-black trousers, a sexy white linen loincloth, a rough hessian robe, a rubber apron, a fancy thobe, a pair of pink bobby socks with lace trim, a pair of yellow braces, two pairs of knee high grey socks, a white cotton shirt, two hessian sacks, a white short-sleeved cotton shirt, three pairs of dentist's trousers, two old once-white shirts, a dark skirt, a push-up breastplate, two crocodile knives, a painted bangle, an oyster knife and two deluxe lockpicks"
+
+	VaultContainerContents(vaultContentsString, vaultFullState)
+end
+
 function VaultTriggerContainerContents(name, output, wildcards)
---	table.print(wildcards)
+	--	table.print(wildcards)
 	local vaultFullState = wildcards[3]
 	local vaultContentsString = wildcards[5]
 
@@ -1491,11 +1523,11 @@ function VaultAliasChangeUser(name, output, wildcards)
 end
 
 function VaultAliasVaultCheckAll(name, output, wildcards)
-	VaultPrintConsolidatedVaultContents()
+VaultPrintConsolidatedVaultContents()
 end
 
 function VaultAliasVaultCheckAllVaults(name, output, wildcards)
-	VaultPrintAllVaults()
+VaultPrintAllVaults()
 end
 
 function VaultAliasVaultCheckAnyHasItem(name, output, wildcards)
@@ -1505,26 +1537,24 @@ end
 
 function VaultAliasVaultContent(name, output, wildcards)
 	local vaultName = wildcards[1]
---	Note(vaultName)
-	for vaultInfoKey, vaultInfoValue in pairs(vaultsInfo) do
---	Note(vaultInfoKey)
-		if vaultInfoKey == vaultName then
-			VaultPrintVaultContents(vaultInfoKey)
-			return
-		end
-	end
-	ColourNote(configColour["error"], "", "VaultAliasVaultContent error: Input vault name is unknown")
+	VaultPrintVaultContents(vaultName)
 end
 
 function VaultAliasVaultContentDelete(name, output, wildcards)
 	local vaultName = wildcards[1]
 
 	local user = VaultGetUser()
-    local vaultContentsString = GetVariable("VaultContainerContents") or ""
-    local data = json.decode(vaultContentsString) or {}
-	data[user][vaultName] = {full = "", contents = {}}
-	
+	local vaultContentsString = GetVariable("VaultContainerContents") or ""
+	local data = json.decode(vaultContentsString) or {}
+	if keyExistsInArray(vaultName, vaultsInfo) then
+		data[user][vaultName] = {type = "vault", full = "", contents = {}}
+	else
+		data[user][vaultName] = nil
+	end
+
 	VaultSetVaultContents(data)
+	Note()
+	VaultPrintAllVaults()
 end
 
 function VaultAliasVaultCopy(name, output, wildcards)
@@ -1593,7 +1623,6 @@ function VaultAliasVaultSetUser(name, output, wildcards)
 	Note()
 end
 
-
 -- VARIABLE
 -- delete
 function VaultDeleteUser(user)
@@ -1638,25 +1667,25 @@ function VaultGetUser()
 end
 
 function VaultGetVaultContainerContents()
-    local user = VaultGetUser()
-    local vaultContentsString = GetVariable("VaultContainerContents") or ""
-    local data = json.decode(vaultContentsString) or {}
+	local user = VaultGetUser()
+	local vaultContentsString = GetVariable("VaultContainerContents") or ""
+	local data = json.decode(vaultContentsString) or {}
 
 	data[user] = data[user] or {}
-    for vaultsInfoKey, _ in pairs(vaultsInfo) do
-        data[user][vaultsInfoKey] = data[user][vaultsInfoKey] or {full = "", contents = {}}
-    end
+	for vaultsInfoKey, _ in pairs(vaultsInfo) do
+		data[user][vaultsInfoKey] = data[user][vaultsInfoKey] or {type = "vault", full = "", contents = {}}
+	end
 
 	if type(GetVariable("VaultContainerContents")) == "nil" then
 		VaultSetVaultContents(data)
 	end
 
-    return data
+	return data
 end
 
 function VaultGetCurrentUserVaultContents()
 	local user = VaultGetUser()
-    return VaultGetVaultContainerContents()[user]
+	return VaultGetVaultContainerContents()[user]
 end
 
 function VaultGetVaultsContainingItem(item)
@@ -1740,27 +1769,95 @@ function VaultContainerContents(vaultContentsString, vaultFullState)
 end
 --#endregion
 
+--#region Container
+
+-- TRIGGER
+
+function ContainerTriggerContainerContents(name, output, wildcards)
+	local containerName = wildcards[1]
+	local containerFullState = wildcards[2]
+	local containerContentsString = wildcards[6]
+	ContainerContainerContents(containerName, containerFullState, containerContentsString)
+end
+
+-- ALIAS
+
+-- VARIABLE
+-- delete
+
+-- set
+
+-- get
+
+-- GENERAL
+function ContainerContainerContents(containerName, containerFullState, containerContentsString)
+	local recentLinesTable = string.toTable(GetRecentLines(10), "\n")
+	local pattern = "(.-)%s+is%s+a%s+"
+	local isDeluded = false
+	
+	for i, v in ipairs(recentLinesTable) do
+		local containerNameFound = string.match(v, pattern)
+		if containerNameFound then
+			containerName = containerNameFound
+			isDeluded = true
+		end
+	end
+
+	if isDeluded then
+		local vaultContentsArray = VaultGetCurrentUserVaultContents()
+		local contentsArray = VaultConvertContentStringToArray(containerContentsString)
+		containerFullState = string.trim(containerFullState)
+		if vaultContentsArray[containerName] == nil then
+			vaultContentsArray[containerName] = {}
+		end
+		vaultContentsArray[containerName].type = "container"
+		vaultContentsArray[containerName].full = containerFullState
+		vaultContentsArray[containerName].contents = contentsArray
+		VaultSetCurrentUserVaultContents(vaultContentsArray)
+	end
+end
+
+--#endregion
+
 --#region Print
 function VaultPrintAllVaults()
+	Note()
+	Note("VAULTS")
 	local vaultContentsArray = VaultGetCurrentUserVaultContents()
+
+	-- Get max string lengths
+	-- Full
 	local fullTable = {}
 	for key, value in pairs(vaultContentsArray) do
 		if not string.isEmpty(value.full) then
-			table.insert(fullTable, vaultFullStates[value.full].percentage)
+			local fullState = vaultFullStates[value.full] or {}
+			local fullStatePercentage = fullState.percentage or 0
+			table.insert(fullTable, fullStatePercentage)
 		end
 	end
 	local fullTableMax = table.valueMaxStringLength(fullTable) or 0
+	-- City
 	local cityTable = {}
 	for key, value in pairs(vaultsInfo) do
 		table.insert(cityTable, value.city)
 	end
 	local cityTableMax = table.valueMaxStringLength(cityTable)
-	
-	local showContentsMax = 0
-	if not table.isEmpty(VaultGetAllVaultContentItemsArray()) then
-		showContentsMax = string.len("[Show contents] ")
+
+	local cityTableMax = 0
+	for _, value in pairs(vaultsInfo) do
+		local cityLength = #value.city
+		if cityLength > cityTableMax then
+			cityTableMax = cityLength
+		end
 	end
-	
+	-- Menu
+	local menuMax = 0
+	if not table.isEmpty(VaultGetAllVaultContentItemsArray()) then
+		menuMax = string.len("[Show | Delete] ")
+	end
+
+	-- SHOW INFO
+	-- Vaults
 	local totalAmount = table.length(vaultsInfo)
 	for i = 1, totalAmount, 1 do
 		for vaultKey, vaultValue in pairs(vaultsInfo) do
@@ -1779,7 +1876,7 @@ function VaultPrintAllVaults()
 					Tell("]")
 					Tell(" ")
 				else
-					Tell(string.fill("", showContentsMax, " "))
+					Tell(string.fill("", menuMax, " "))
 				end
 
 				if vaultFull ~= "" then
@@ -1810,6 +1907,43 @@ function VaultPrintAllVaults()
 			end
 		end
 	end
+
+	-- Containers
+	local containerTable = table.filter(vaultContentsArray, "type", "container")
+	if table.length(containerTable) > 0 then
+		Note("CONTAINERS")
+		for containerKey, containerValue in pairs(containerTable) do
+			local containerFull = vaultContentsArray[containerKey].full
+
+			if containerFull ~= "" then
+				-- Show hyperlink to get content details
+				Tell("[")
+				Tell(Hyperlink("vaultcontent " .. containerKey, "Show", "Show contents of " .. containerKey, colourHyperlink, "black", 0))
+				Tell(" | ")
+				Tell(Hyperlink("vaultcontentdelete " .. containerKey, "Delete", "Delete the contents of " .. containerKey, colourHyperlink, "black", 0))
+				Tell("]")
+				Tell(" ")
+			else
+				Tell(string.fill("", menuMax, " "))
+			end
+			
+			if containerFull ~= "" then
+				-- Get hexcolour from vaultFullStates and use that.
+				Tell("(")
+				ColourTell(VaultGetHexColourByFill(containerFull), "", string.fill(vaultFullStates[containerFull].percentage .. "%", fullTableMax, " "))
+				Tell(")")
+				Tell(" ")
+			else
+				if fullTableMax ~= 0 then
+					Tell(string.fill("", fullTableMax + 4, " "))
+				end
+			end
+
+			Tell(string.fill("", cityTableMax + 1, " ", true))
+
+			Note(containerKey)
+		end
+	end
 end
 
 function VaultPrintAnyHasItem(item)
@@ -1826,13 +1960,13 @@ function VaultPrintAnyHasItem(item)
 			table.insert(fullTable, value.full)
 		end
 		local fullTableMax = table.valueMaxStringLength(fullTable)
-	
+
 		local cityTable = {}
 		for key, value in pairs(vaultsInfo) do
 			table.insert(cityTable, value.city)
 		end
 		local cityTableMax = table.valueMaxStringLength(cityTable)
-	
+
 		local showContentsMax = 0
 		if not table.isEmpty(VaultGetAllVaultContentItemsArray()) then
 			showContentsMax = string.len("[Show contents] ")
@@ -1844,6 +1978,7 @@ function VaultPrintAnyHasItem(item)
 			ColourTell(colourVaultName, "", ".")
 			Note()
 		else
+			Note()
 			for i = 1, #matchVaultTable, 1 do
 				local vaultKey = matchVaultTable[i]
 				local vault = vaultsInfo[vaultKey]
@@ -1854,7 +1989,7 @@ function VaultPrintAnyHasItem(item)
 				if vaultFull ~= "" then
 					-- Show hyperlink to get content details
 					Tell("[")
-					Tell(Hyperlink("vaultcontent " .. vaultKey, "Show contents", "Show contents of " .. vaultKey, colourHyperlink, "black", 0))
+					Tell(Hyperlink("vaultcontent " .. vaultKey, "Show", "Show contents of " .. vaultKey, colourHyperlink, "black", 0))
 					Tell("]")
 					Tell(" ")
 				else
@@ -1871,15 +2006,19 @@ function VaultPrintAnyHasItem(item)
 					Tell(string.fill("", 7, " "))
 				end
 
-				ColourTell(colourCityName, "", vault.city)
-				Tell(string.fill("", cityTableMax - string.len(vault.city) + 1, " ", true))
+				if vault then
+					ColourTell(colourCityName, "", vault.city)
+					Tell(string.fill("", cityTableMax - string.len(vault.city) + 1, " ", true))
+					Tell(Hyperlink("minimap " .. vaultKey, vaultKey, "Automove to " .. vaultKey, colourHyperlink, "black", 0))
+					Tell(" (costs ")
+					ColourTell(colourVaultCost, "", vault.cost)
+					Tell(")")
+				else
+					Tell(vaultKey)
+					Tell(string.fill("", cityTableMax - #vaultKey + 1, " ", true))
+				end
 
-				Tell(Hyperlink("minimap " .. vaultKey, vaultKey, "Automove to " .. vaultKey, colourHyperlink, "black", 0))
-
-				Tell(" (costs ")
-				ColourTell(colourVaultCost, "", vault.cost)
-				Tell(")")
-				Note("")
+				Note()
 
 				local VaultContainerContents = vaultContentsArray[matchVaultTable[i]].contents
 				for key, value in pairs(VaultContainerContents) do
@@ -1889,7 +2028,11 @@ function VaultPrintAnyHasItem(item)
 						Tell(": ")
 						ColourTell(colourAmount, "", value)
 						Tell(" [")
-						ColourTell(Hyperlink("\nwait\ntake 1 " .. key .. " from " .. vault.container .. "\nlook " .. vault.container, "take one", "take one " .. key .. " from " .. vault.container, colourHyperlink, "black", 0))
+						if vault then
+							ColourTell(Hyperlink("\nwait\ntake 1 " .. key .. " from " .. vault.container .. "\nlook " .. vault.container, "take one", "take one " .. key .. " from " .. vault.container, colourHyperlink, "black", 0))
+						else
+							ColourTell(Hyperlink("\ntake 1 " .. key .. " from " .. vaultKey .. "\nlook " .. vaultKey, "take one", "take one " .. key .. " from " .. vaultKey, colourHyperlink, "black", 0))
+						end
 						Tell("] ")
 						Note()
 					end
@@ -1950,6 +2093,7 @@ end
 <!--  Triggers  -->
 <triggers>
 	<trigger enabled="y" regexp="y" name="lblVaultSetContent" group="VaultTrigger" match="The (drawer|large wooden drawer|steel locker|cubby hole|octiron tesseract|clean nest) (is )?(contains|almost empty except for|about (.+) full with|almost full with|almost completely full with|completely full with|over-full with) (.+)\." script="VaultTriggerContainerContents" sequence="100"></trigger>
+	<trigger enabled="y" regexp="y" name="lblContainerSetContent" group="VaultTrigger" match="(.+) is (contains|almost empty except for|(about|over) (.+) full with|almost full with|almost completely full with|completely full with|over-full with)(:)? (.+)\." script="ContainerTriggerContainerContents" sequence="100"></trigger>
 </triggers>
 
 <!--  Aliases  -->
@@ -1959,7 +2103,7 @@ end
 	<alias enabled="y" regexp="y" ignore_case="y" name="lblVaultCheckAll" group="VaultAlias" match="^vaults?all$" script="VaultAliasVaultCheckAll" sequence="100"></alias>
 	<alias enabled="y" regexp="y" ignore_case="y" name="lblVaultContent" group="VaultAlias" match="^vaults?content (.+)$" script="VaultAliasVaultContent" sequence="100"></alias>
 	<alias enabled="y" regexp="y" ignore_case="y" name="lblVaultContentDelete" group="VaultAlias" match="^vaults?contents?delete (.+)$" script="VaultAliasVaultContentDelete" sequence="100"></alias>
-	
+
 	<alias enabled="y" ignore_case="y" regexp="y" keep_evaluating="y" match="^VaultUsers?$" group="VaultAlias" script="VaultAliasVaultShowUsers" sequence="100"></alias>
 	<alias enabled="y" ignore_case="y" regexp="y" keep_evaluating="y" match="^VaultUsers? (\w+).*$" group="VaultAlias" script="VaultAliasVaultSetUser" sequence="100"></alias>
 	<alias enabled="y" ignore_case="y" regexp="y" keep_evaluating="y" match="^VaultDeleteUser (\w+).*$" group="VaultAlias" script="VaultAliasVaultDeleteUser" sequence="100"></alias>
