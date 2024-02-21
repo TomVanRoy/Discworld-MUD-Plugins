@@ -1729,8 +1729,6 @@ function VaultContainerContents(vaultContentsString, vaultFullState)
 		end
 	end
 
-	Note(currentVault)
-
 	if currentVault ~= "" then
 		local vaultContentsArray = VaultGetCurrentUserVaultContents()
 		local contentsArray = VaultConvertContentStringToArray(vaultContentsString)
