@@ -1376,14 +1376,14 @@ end
 function VaultCheckVaultArrayStructure(t)
 	-- check if table is not nil and has at least one user key
 	if t == nil or next(t) == nil then
-	return false
+		return false
 	end
 
 	-- iterate through user keys
 	for _, userValue in pairs(t) do
 		-- check if userValue is a table
 		if type(userValue) ~= "table" then
-		return false
+			return false
 		end
 
 		-- iterate through vault keys
@@ -1394,7 +1394,7 @@ function VaultCheckVaultArrayStructure(t)
 			end
 
 			-- check if vaultValue has keys "full" and "contents"
-			if vaultValue["full"] == nil or vaultValue["contents"] == nil then
+			if vaultValue["type"] == nil or vaultValue["full"] == nil or vaultValue["contents"] == nil then
 				return false
 			end
 
