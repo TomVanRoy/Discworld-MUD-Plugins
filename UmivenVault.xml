@@ -1790,17 +1790,21 @@ function ContainerContainerContents(containerName, containerFullState, container
 		end
 	end
 
-	if isDeluded then
-		local vaultContentsArray = VaultGetCurrentUserVaultContents()
-		local contentsArray = VaultConvertContentStringToArray(containerContentsString)
-		containerFullState = string.trim(containerFullState)
-		if vaultContentsArray[containerName] == nil then
-			vaultContentsArray[containerName] = {}
+	local containerNameTable = string.toTable(containerName, " ")
+	if table.contains(containerNameTable, "It") or table.contains(containerNameTable, "This") then
+	else
+		if isDeluded then
+			local vaultContentsArray = VaultGetCurrentUserVaultContents()
+			local contentsArray = VaultConvertContentStringToArray(containerContentsString)
+			containerFullState = string.trim(containerFullState)
+			if vaultContentsArray[containerName] == nil then
+				vaultContentsArray[containerName] = {}
+			end
+			vaultContentsArray[containerName].type = "container"
+			vaultContentsArray[containerName].full = containerFullState
+			vaultContentsArray[containerName].contents = contentsArray
+			VaultSetCurrentUserVaultContents(vaultContentsArray)
 		end
-		vaultContentsArray[containerName].type = "container"
-		vaultContentsArray[containerName].full = containerFullState
-		vaultContentsArray[containerName].contents = contentsArray
-		VaultSetCurrentUserVaultContents(vaultContentsArray)
 	end
 end
 
