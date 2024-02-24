@@ -1486,18 +1486,9 @@ function VaultShowUsers()
 end
 
 -- TRIGGER
-function VaultTriggerContainerContentsTest()
-	local vaultFullState = "about three-quarters full with"
-	local vaultContentsString = "two huge fruit covered hats, a boxing ring, five gold-trimmed obis, a black cotton dress, two white smocks, a pair of kogake tabi, three old shirts, two pairs of okobo, two pairs of cotton socks, a dark green obi, a dusty blue himation, three pairs of laced sandals, a dirty grey robe, two dark blue tricorns, two abacuses, two black bandanas, two AMCW badges, two pairs of peach pumps, a black silk bandana, two leaf-bladed daggers, a bright copper necklet, two black sowrongs, two pairs of lacy bloomers, fifteen yellow ribbons, a startling green dress, a short-sleeved white cotton shirt, a horsehair-crested bronze helm, a pair of rough hessian trousers, a leather protective, a pair of purple-black trousers, a sexy white linen loincloth, a rough hessian robe, a rubber apron, a fancy thobe, a pair of pink bobby socks with lace trim, a pair of yellow braces, two pairs of knee high grey socks, a white cotton shirt, two hessian sacks, a white short-sleeved cotton shirt, three pairs of dentist's trousers, two old once-white shirts, a dark skirt, a push-up breastplate, two crocodile knives, a painted bangle, an oyster knife and two deluxe lockpicks"
-
-	VaultContainerContents(vaultContentsString, vaultFullState)
-end
-
 function VaultTriggerContainerContents(name, output, wildcards)
-	--	table.print(wildcards)
 	local vaultFullState = wildcards[3]
 	local vaultContentsString = wildcards[5]
-
 	VaultContainerContents(vaultContentsString, vaultFullState)
 end
 
@@ -1528,11 +1519,11 @@ function VaultAliasChangeUser(name, output, wildcards)
 end
 
 function VaultAliasVaultCheckAll(name, output, wildcards)
-VaultPrintConsolidatedVaultContents()
+	VaultPrintConsolidatedVaultContents()
 end
 
 function VaultAliasVaultCheckAllVaults(name, output, wildcards)
-VaultPrintAllVaults()
+	VaultPrintAllVaults()
 end
 
 function VaultAliasVaultCheckAnyHasItem(name, output, wildcards)
@@ -1779,21 +1770,11 @@ end
 -- TRIGGER
 
 function ContainerTriggerContainerContents(name, output, wildcards)
---	table.print(wildcards)
 	local containerName = wildcards[1]
 	local containerFullState = wildcards[2]
 	local containerContentsString = wildcards[6]
 	ContainerContainerContents(containerName, containerFullState, containerContentsString)
 end
-
--- ALIAS
-
--- VARIABLE
--- delete
-
--- set
-
--- get
 
 -- GENERAL
 function ContainerContainerContents(containerName, containerFullState, containerContentsString)
@@ -1829,7 +1810,6 @@ end
 
 -- TRIGGER
 function ApexTriggerContainerContents(name, output, wildcards)
---	table.print(wildcards)
 	local apexFullState = wildcards[2]
 	local apexContentsString = wildcards[4]
 	ApexContainerContents(apexFullState, apexContentsString)
@@ -1871,7 +1851,6 @@ function VaultPrintAllVaults()
 	Note("VAULTS")
 	local vaultContentsArray = VaultGetCurrentUserVaultContents()
 
---	table.print(vaultContentsArray)
 	-- Get max string lengths
 	-- Full
 	local fullTable = {}
@@ -1986,7 +1965,8 @@ function VaultPrintAllVaults()
 				end
 			end
 
-			Tell(string.fill("", cityTableMax + 1, " ", true))
+			ColourTell(colourCityName, "", "Ankh-Morpork")
+			Tell(string.fill("", cityTableMax - string.len("Ankh-Morpork") + 1, " ", true))
 
 			Note(containerKey)
 		end
@@ -2176,18 +2156,18 @@ end
 
 <!--  Triggers  -->
 <triggers>
-	<trigger enabled="y" regexp="y" match="The large wardrobe (is )?(contains|almost empty except for|about (.+) full with|almost full with|almost completely full with|completely full with|over-full with) (.+)\." script="ApexTriggerContainerContents" sequence="90"></trigger>
-	<trigger enabled="y" regexp="y" match="The (drawer|large wooden drawer|steel locker|cubby hole|octiron tesseract|clean nest) (is )?(contains|almost empty except for|about (.+) full with|almost full with|almost completely full with|completely full with|over-full with) (.+)\." script="VaultTriggerContainerContents" sequence="100"></trigger>
+	<trigger enabled="y" regexp="y" match="The large wardrobe (is )?(contains|almost empty except for|about (.+) full with|almost full with|almost completely full with|completely full with|over-full with) (.+)\." script="ApexTriggerContainerContents" sequence="80"></trigger>
+	<trigger enabled="y" regexp="y" match="The (drawer|large wooden drawer|steel locker|cubby hole|octiron tesseract|clean nest) (is )?(contains|almost empty except for|about (.+) full with|almost full with|almost completely full with|completely full with|over-full with) (.+)\." script="VaultTriggerContainerContents" sequence="90"></trigger>
 	<trigger enabled="y" regexp="y" match="(.+) is (contains|almost empty except for|(about|over) (.+) full with|almost full with|almost completely full with|completely full with|over-full with)(:)? (.+)\." script="ContainerTriggerContainerContents" sequence="100"></trigger>
 </triggers>
 
 <!--  Aliases  -->
 <aliases>
-	<alias enabled="y" regexp="y" ignore_case="y" name="lblVaultCheckAllVaults" group="VaultAlias" match="^vaults?$" script="VaultAliasVaultCheckAllVaults" sequence="100"></alias>
-	<alias enabled="y" regexp="y" ignore_case="y" name="lblVaultCheckAnyHasItem" group="VaultAlias" match="^vaults? (.*)$" script="VaultAliasVaultCheckAnyHasItem" sequence="100"></alias>
-	<alias enabled="y" regexp="y" ignore_case="y" name="lblVaultCheckAll" group="VaultAlias" match="^vaults?all$" script="VaultAliasVaultCheckAll" sequence="100"></alias>
-	<alias enabled="y" regexp="y" ignore_case="y" name="lblVaultContent" group="VaultAlias" match="^vaults?content (.+)$" script="VaultAliasVaultContent" sequence="100"></alias>
-	<alias enabled="y" regexp="y" ignore_case="y" name="lblVaultContentDelete" group="VaultAlias" match="^vaults?contents?delete (.+)$" script="VaultAliasVaultContentDelete" sequence="100"></alias>
+	<alias enabled="y" regexp="y" ignore_case="y" group="VaultAlias" match="^vaults?$" script="VaultAliasVaultCheckAllVaults" sequence="100"></alias>
+	<alias enabled="y" regexp="y" ignore_case="y" group="VaultAlias" match="^vaults? (.*)$" script="VaultAliasVaultCheckAnyHasItem" sequence="100"></alias>
+	<alias enabled="y" regexp="y" ignore_case="y" group="VaultAlias" match="^vaults?all$" script="VaultAliasVaultCheckAll" sequence="100"></alias>
+	<alias enabled="y" regexp="y" ignore_case="y" group="VaultAlias" match="^vaults?content (.+)$" script="VaultAliasVaultContent" sequence="100"></alias>
+	<alias enabled="y" regexp="y" ignore_case="y" group="VaultAlias" match="^vaults?contents?delete (.+)$" script="VaultAliasVaultContentDelete" sequence="100"></alias>
 
 	<alias enabled="y" ignore_case="y" regexp="y" keep_evaluating="y" match="^VaultUsers?$" group="VaultAlias" script="VaultAliasVaultShowUsers" sequence="100"></alias>
 	<alias enabled="y" ignore_case="y" regexp="y" keep_evaluating="y" match="^VaultUsers? (\w+).*$" group="VaultAlias" script="VaultAliasVaultSetUser" sequence="100"></alias>
