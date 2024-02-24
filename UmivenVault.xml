@@ -10,10 +10,10 @@
    language="Lua"
    purpose="Vault Tracker"
    date_written="2022-05-27"
-   date_modified="2024-02-21"
+   date_modified="2024-02-24"
    save_state="y"
    requires="5.06"
-   version="1.11"
+   version="1.2"
    >
 <description trim="y">
 <![CDATA[
@@ -21,28 +21,33 @@
 *****                      Vault Tracker                       *****
 *****                      For Discworld                       *****
 *****                                                          *****
-*****  Keeps track of the all items in your vaults. To use     *****
-*****  this plugin, go to each vault and look at the items in  *****
-*****  each vault. The items will then be stored per vault.    *****
-*****  "vault" or "vaults" returns a list of vaults, along     *****
-*****  with options to see its contents (if it has any). If    *****
-*****  you also have quow's minimap plugin activated, it will  *****
-*****  have a button to speedwalk to it.                       *****
-*****  "vault <item>" or "vaults <item>" will return a list    *****
-*****  of vaults that contain the specified item.              *****
-*****  "vaultall" or "vaultsall" will return a combined list   *****
-*****  of every item and the amount of it you have across all  *****
+*****  Keeps track of the all items in your vaults and         *****
+*****  deluded containers. To use this plugin, go to each      *****
+*****  vault and look at the items in that vault, look in      *****
+*****  each deluded container, and in the Apex room wardrobe.  *****
+*****  The items will then be stored per vault/container/apex. *****
+*****  By default, it will store all data in the "default"     *****
+*****  user.                                                   *****
+*****  "vault" or "vaults": This will give you an overview of  *****
+*****  the current selected character's vaults/containers      *****
+*****  with the option to show its contents (if there is any   *****
+*****  stored). If you also have quow's minimap plugin         *****
+*****  activated, it will have a button to speedwalk to        *****
 *****  vaults.                                                 *****
-*****                                                          *****
-*****  "vaultusers" will show you all recorder character and   *****
-*****  allow you to switch between them, copy and paste the    *****
-*****  vault contents between characters, and delete           *****
-*****  characters.                                             *****
+*****  "vault <item>" or "vaults <item>" returns all           *****
+*****  vaults/containers/apex that contains the specified      *****
+*****  item.                                                   *****
+*****  "vaultall" or "vaultsall" gives you a complete list of  *****
+*****  all items stored across all of your current selected    *****
+*****  character's vaults, containers and apex room.           *****
+*****  "vaultuser" or "vaultusers" gives a list of all known   *****
+*****  users and allows you to change between them, delete     *****
+*****  them, and copy/paste data between them.                 *****
 *****  "vaultuser <username>" will add a new character whose   *****
 *****  vault can be recorded.                                  *****
 *****  Note: you need to look at the contents of at least      *****
-*****  one vault before the new character and its information  *****
-*****  will be saved.                                          *****
+*****  one vault/container before the new character and its    *****
+*****  information will be saved.                              *****
 ********************************************************************
 ]]>
 </description>
@@ -1376,14 +1381,14 @@ end
 function VaultCheckVaultArrayStructure(t)
 	-- check if table is not nil and has at least one user key
 	if t == nil or next(t) == nil then
-	return false
+		return false
 	end
 
 	-- iterate through user keys
 	for _, userValue in pairs(t) do
 		-- check if userValue is a table
 		if type(userValue) ~= "table" then
-		return false
+			return false
 		end
 
 		-- iterate through vault keys
@@ -1394,7 +1399,7 @@ function VaultCheckVaultArrayStructure(t)
 			end
 
 			-- check if vaultValue has keys "full" and "contents"
-			if vaultValue["full"] == nil or vaultValue["contents"] == nil then
+			if vaultValue["type"] == nil or vaultValue["full"] == nil or vaultValue["contents"] == nil then
 				return false
 			end
 
@@ -1820,6 +1825,46 @@ end
 
 --#endregion
 
+--#region Apex
+
+-- TRIGGER
+function ApexTriggerContainerContents(name, output, wildcards)
+--	table.print(wildcards)
+	local apexFullState = wildcards[2]
+	local apexContentsString = wildcards[4]
+	ApexContainerContents(apexFullState, apexContentsString)
+end
+
+
+-- GENERAL
+function ApexContainerContents(apexFullState, apexContentsString)
+	local recentLinesTable = string.toTable(GetRecentLines(10), "\n")
+	local pattern = "This large wardrobe is made from chestnut and varnished to bring out the glow.  If you plan to be out of the room for a while, you should put anything you want to store here in the wardrobe, so that the cleaning ladies don't accidentally throw it away."
+	local containerName = "Rented Apex Room Wardrobe"
+	local isApex = false
+	
+	for i, v in ipairs(recentLinesTable) do
+		if v == pattern then
+			isApex = true
+		end
+	end
+
+	if isApex then
+		local vaultContentsArray = VaultGetCurrentUserVaultContents()
+		local contentsArray = VaultConvertContentStringToArray(apexContentsString)
+		local fullState = string.trim(apexFullState)
+		if vaultContentsArray[containerName] == nil then
+			vaultContentsArray[containerName] = {}
+		end
+		vaultContentsArray[containerName].type = "apex"
+		vaultContentsArray[containerName].full = fullState
+		vaultContentsArray[containerName].contents = contentsArray
+		VaultSetCurrentUserVaultContents(vaultContentsArray)
+	end
+end
+
+--#endregion
+
 --#region Print
 function VaultPrintAllVaults()
 	Note()
@@ -1907,6 +1952,43 @@ function VaultPrintAllVaults()
 				Tell(")")
 				Note("")
 			end
+		end
+	end
+
+	-- Apex
+	local apexTable = table.filter(vaultContentsArray, "type", "apex")
+	if table.length(apexTable) > 0 then
+		Note("APEX ROOM")
+		for containerKey, containerValue in pairs(apexTable) do
+			local containerFull = vaultContentsArray[containerKey].full
+
+			if containerFull ~= "" then
+				-- Show hyperlink to get content details
+				Tell("[")
+				Tell(Hyperlink("vaultcontent " .. containerKey, "Show", "Show contents of Apex room", colourHyperlink, "black", 0))
+				Tell(" | ")
+				Tell(Hyperlink("vaultcontentdelete " .. containerKey, "Delete", "Delete the contents of Apex room", colourHyperlink, "black", 0))
+				Tell("]")
+				Tell(" ")
+			else
+				Tell(string.fill("", menuMax, " "))
+			end
+			
+			if containerFull ~= "" then
+				-- Get hexcolour from vaultFullStates and use that.
+				Tell("(")
+				ColourTell(VaultGetHexColourByFill(containerFull), "", string.fill(vaultFullStates[containerFull].percentage .. "%", fullTableMax, " "))
+				Tell(")")
+				Tell(" ")
+			else
+				if fullTableMax ~= 0 then
+					Tell(string.fill("", fullTableMax + 4, " "))
+				end
+			end
+
+			Tell(string.fill("", cityTableMax + 1, " ", true))
+
+			Note(containerKey)
 		end
 	end
 
@@ -2094,8 +2176,9 @@ end
 
 <!--  Triggers  -->
 <triggers>
-	<trigger enabled="y" regexp="y" name="lblVaultSetContent" group="VaultTrigger" match="The (drawer|large wooden drawer|steel locker|cubby hole|octiron tesseract|clean nest) (is )?(contains|almost empty except for|about (.+) full with|almost full with|almost completely full with|completely full with|over-full with) (.+)\." script="VaultTriggerContainerContents" sequence="100"></trigger>
-	<trigger enabled="y" regexp="y" name="lblContainerSetContent" group="VaultTrigger" match="(.+) is (contains|almost empty except for|(about|over) (.+) full with|almost full with|almost completely full with|completely full with|over-full with)(:)? (.+)\." script="ContainerTriggerContainerContents" sequence="100"></trigger>
+	<trigger enabled="y" regexp="y" match="The large wardrobe (is )?(contains|almost empty except for|about (.+) full with|almost full with|almost completely full with|completely full with|over-full with) (.+)\." script="ApexTriggerContainerContents" sequence="90"></trigger>
+	<trigger enabled="y" regexp="y" match="The (drawer|large wooden drawer|steel locker|cubby hole|octiron tesseract|clean nest) (is )?(contains|almost empty except for|about (.+) full with|almost full with|almost completely full with|completely full with|over-full with) (.+)\." script="VaultTriggerContainerContents" sequence="100"></trigger>
+	<trigger enabled="y" regexp="y" match="(.+) is (contains|almost empty except for|(about|over) (.+) full with|almost full with|almost completely full with|completely full with|over-full with)(:)? (.+)\." script="ContainerTriggerContainerContents" sequence="100"></trigger>
 </triggers>
 
 <!--  Aliases  -->
