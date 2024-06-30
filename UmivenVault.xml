@@ -10,10 +10,10 @@
    language="Lua"
    purpose="Vault Tracker"
    date_written="2022-05-27"
-   date_modified="2024-02-24"
+   date_modified="2024-06-30"
    save_state="y"
    requires="5.06"
-   version="1.2"
+   version="1.3"
    >
 <description trim="y">
 <![CDATA[
@@ -1272,6 +1272,7 @@ function VaultConvertItemNamePluralToSingle(s)
 end
 
 function VaultConvertContentStringToArray(s)
+	Note('VaultConvertContentStringToArray')
 	if type(s) == "string" and s ~= "" then
 		s = ", " .. s
 		if string.match(s, " and ") then
@@ -1290,6 +1291,7 @@ function VaultConvertContentStringToArray(s)
 		s = string.gsub(s, ", an ", ";, 1*")
 		s = string.gsub(s, ", a ", ";, 1*")
 		s = string.gsub(s, ", many ", ";, 20*")
+		s = string.gsub(s, ", various ", ";, 1*")
 
 		-- prepare string to be split
 		for key, value in pairs(numberWords) do
@@ -1779,7 +1781,8 @@ end
 -- TRIGGER
 
 function ContainerTriggerContainerContents(name, output, wildcards)
---	table.print(wildcards)
+	Note('ContainerTriggerContainerContents triggered')
+	table.print(wildcards)
 	local containerName = wildcards[1]
 	local containerFullState = wildcards[2]
 	local containerContentsString = wildcards[6]
@@ -1797,6 +1800,7 @@ end
 
 -- GENERAL
 function ContainerContainerContents(containerName, containerFullState, containerContentsString)
+	Note('ContainerContainerContents triggered')
 	local recentLinesTable = string.toTable(GetRecentLines(10), "\n")
 	local pattern = "(.-)%s+is%s+a%s+"
 	local isDeluded = false
@@ -1810,6 +1814,7 @@ function ContainerContainerContents(containerName, containerFullState, container
 	end
 
 	if isDeluded then
+		Note('isDeluded triggered')
 		local vaultContentsArray = VaultGetCurrentUserVaultContents()
 		local contentsArray = VaultConvertContentStringToArray(containerContentsString)
 		containerFullState = string.trim(containerFullState)
