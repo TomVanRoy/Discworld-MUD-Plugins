@@ -1272,7 +1272,6 @@ function VaultConvertItemNamePluralToSingle(s)
 end
 
 function VaultConvertContentStringToArray(s)
-	Note('VaultConvertContentStringToArray')
 	if type(s) == "string" and s ~= "" then
 		s = ", " .. s
 		if string.match(s, " and ") then
@@ -1772,8 +1771,6 @@ end
 -- TRIGGER
 
 function ContainerTriggerContainerContents(name, output, wildcards)
-	Note('ContainerTriggerContainerContents triggered')
-	table.print(wildcards)
 	local containerName = wildcards[1]
 	local containerFullState = wildcards[2]
 	local containerContentsString = wildcards[6]
@@ -1818,7 +1815,6 @@ end
 
 -- TRIGGER
 function ApexTriggerContainerContents(name, output, wildcards)
---	table.print(wildcards)
 	local apexFullState = wildcards[2]
 	local apexContentsString = wildcards[4]
 	ApexContainerContents(apexFullState, apexContentsString)
@@ -1860,7 +1856,6 @@ function VaultPrintAllVaults()
 	Note("VAULTS")
 	local vaultContentsArray = VaultGetCurrentUserVaultContents()
 
---	table.print(vaultContentsArray)
 	-- Get max string lengths
 	-- Full
 	local fullTable = {}
