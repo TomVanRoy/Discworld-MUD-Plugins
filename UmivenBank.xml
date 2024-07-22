@@ -3,20 +3,20 @@
 
 <!-- Bank Helper created by Umiven -->
 <muclient>
-<plugin
-   name="UmivenBanker"
-   author="Umiven"
-   id="556d6976656e000000000001"
-   language="Lua"
-   purpose="Bank Tracker"
-   date_written="2022-05-22"
-   date_modified="2023-02-11"
-   save_state="y"
-   requires="5.06"
-   version="1.07"
-   >
-<description trim="y">
-<![CDATA[
+	<plugin
+		name="UmivenBanker"
+		author="Umiven"
+		id="556d6976656e000000000001"
+		language="Lua"
+		purpose="Bank Tracker"
+		date_written="2022-05-22"
+		date_modified="2024-07-22"
+		save_state="y"
+		requires="5.06"
+		version="1.08"
+	>
+	<description trim="y">
+			<![CDATA[
 ********************************************************************
 *****                       Bank Tracker                       *****
 *****                      For Discworld                       *****
@@ -45,10 +45,10 @@
 *****  all the money you are currently holding (rounded down). *****
 ********************************************************************
 ]]>
-</description>
-</plugin>
+		</description>
+	</plugin>
 
-<script>
+	<script>
 local json = require("json")
 
 ----------------------
@@ -793,7 +793,7 @@ function BankTriggerSetPurse(name, output, wildcards)
 		PurseSetPurseContents("")
 		PurseSetPurseContentsHalf("")
 
-		if moneyString ~= "only moths" then
+		if moneyString ~= "only moths" and moneyString ~= "" then
 			moneyString = string.gsub(moneyString, " and ", ", ")
 			moneyString = string.gsub(moneyString, "one", "1")
 			PurseSetPurseContents(moneyString)
@@ -840,203 +840,35 @@ function PurseSetPurseContentsHalf(purseContentsHalf)
 	SetVariable("bankPurseContentsHalf", purseContentsHalf)
 end
 ]]>
-</script> 
+</script>
 
 <!--  Triggers  -->
 <triggers>
-	<!-- Bank Triggers -->
-		<trigger
-			enabled="y"
-			regexp="y"
-			match="(You have|This gives a total of) (.*) in your account( after the withdrawal)?\."
-			name="lblBankSetAmount"
-			group="BankTrigger"
-			script="BankTriggerSetCurrentBankAmount"
-			sequence="100"
-		>
-		</trigger>
-		<trigger
-			enabled="y"
-			regexp="y"
-			match="\[(Bing\'s First Bank)\]"
-			group="BankTrigger"
-			script="BankTriggerSetCurrentBank"
-			sequence="100"
-		>
-		</trigger>
-		<trigger
-			enabled="y"
-			regexp="y"
-			match="\[(branch of Bing\'s Bank)\]"
-			group="BankTrigger"
-			script="BankTriggerSetCurrentBank"
-			sequence="100"
-		>
-		</trigger>
-		<trigger
-			enabled="y"
-			regexp="y"
-			match="\[(neat branch of Bing\'s bank)\]"
-			group="BankTrigger"
-			script="BankTriggerSetCurrentBank"
-			sequence="100"
-		>
-		</trigger>
-		<trigger
-			enabled="y"
-			regexp="y"
-			match="\[(Lancrastian Farmers\' Cooperative Bank)\]"
-			group="BankTrigger"
-			script="BankTriggerSetCurrentBank"
-			sequence="100"
-		>
-		</trigger>
-		<trigger
-			enabled="y"
-			regexp="y"
-			match="\[(branch of the First Imperial Bank of the Empire)\]"
-			group="BankTrigger"
-			script="BankTriggerSetCurrentBank"
-			sequence="100"
-		>
-		</trigger>
-		<trigger
-			enabled="y"
-			regexp="y"
-			match="\[(First Imperial Bank of the Empire)\]"
-			group="BankTrigger"
-			script="BankTriggerSetCurrentBank"
-			sequence="100"
-		>
-		</trigger>
-		<trigger
-			enabled="y"
-			regexp="y"
-			match="\[(Klatchian Continental Bank)\]"
-			group="BankTrigger"
-			script="BankTriggerSetCurrentBank"
-			sequence="100"
-		>
-		</trigger>
-		<trigger
-			enabled="y"
-			regexp="y"
-			match="\[(Genua National Bank)\]"
-			group="BankTrigger"
-			script="BankTriggerSetCurrentBank"
-			sequence="100"
-		>
-		</trigger>
-	<!-- Purse Triggers -->
-		<trigger
-			enabled="y"
-			regexp="y"
-			match="^Your purse contains (.*)\.$"
-			group="BankTrigger"
-			script="BankTriggerSetPurse"
-			sequence="100"
-		>
-		</trigger>
+<!-- Bank Triggers -->
+	<trigger enabled="y" regexp="y" match="(You have|This gives a total of) (.*) in your account( after the withdrawal)?\." name="lblBankSetAmount" group="BankTrigger" script="BankTriggerSetCurrentBankAmount" sequence="100"></trigger>
+	<trigger enabled="y" regexp="y" match="\[(Bing\'s First Bank)\]" group="BankTrigger" script="BankTriggerSetCurrentBank" sequence="100"></trigger>
+	<trigger enabled="y" regexp="y" match="\[(branch of Bing\'s Bank)\]" group="BankTrigger" script="BankTriggerSetCurrentBank" sequence="100"></trigger>
+	<trigger enabled="y" regexp="y" match="\[(neat branch of Bing\'s bank)\]" group="BankTrigger" script="BankTriggerSetCurrentBank" sequence="100"></trigger>
+	<trigger enabled="y" regexp="y" match="\[(Lancrastian Farmers\' Cooperative Bank)\]" group="BankTrigger" script="BankTriggerSetCurrentBank" sequence="100"></trigger>
+	<trigger enabled="y" regexp="y" match="\[(branch of the First Imperial Bank of the Empire)\]" group="BankTrigger" script="BankTriggerSetCurrentBank" sequence="100"></trigger>
+	<trigger enabled="y" regexp="y" match="\[(First Imperial Bank of the Empire)\]" group="BankTrigger" script="BankTriggerSetCurrentBank" sequence="100"></trigger>
+	<trigger enabled="y" regexp="y" match="\[(Klatchian Continental Bank)\]" group="BankTrigger" script="BankTriggerSetCurrentBank" sequence="100"></trigger>
+	<trigger enabled="y" regexp="y" match="\[(Genua National Bank)\]" group="BankTrigger" script="BankTriggerSetCurrentBank" sequence="100"></trigger>
+<!-- Purse Triggers -->
+	<trigger enabled="y" regexp="y" match="^Your purse contains (.*)\.$" group="BankTrigger" script="BankTriggerSetPurse" sequence="100"></trigger>
 </triggers>
 
 <!--  Aliases  -->
 <aliases>
-	<alias
-		enabled="y"
-		regexp="y"
-		ignore_case="y"
-		match="^banks?$"
-		group="BankAlias"
-		script="BankAliasBankPrintAllInfo"
-		sequence="100"
-	>
-	</alias>
-	<alias
-		enabled="y"
-		regexp="y"
-		ignore_case="y"
-		match="banks?reset"
-		group="BankAlias"
-		script="BankAliasBankDeleteBalances"
-		sequence="100"
-	>
-	</alias>
-	<alias
-		enabled="y"
-		regexp="y"
-		ignore_case="y"
-		match="^deposithalf$"
-		group="BankAlias"
-		script="BankAliasPurseDepositHalfMoney"
-		sequence="100"
-	>
-	</alias>
-	<alias
-		enabled="y"
-		ignore_case="y"
-		regexp="y"
-		keep_evaluating="y"
-		match="^BankUsers?$"
-		group="BankAlias"
-		script="BankAliasBankChangeUser"
-		sequence="100"
-	>
-	</alias>
-	<alias
-		enabled="y"
-		ignore_case="y"
-		regexp="y"
-		keep_evaluating="y"
-		match="^BankUsers? (\w+).*$"
-		group="BankAlias"
-		script="BankAliasBankSetUser"
-		sequence="100"
-	>
-	</alias>
-	<alias
-		enabled="y"
-		ignore_case="y"
-		regexp="y"
-		keep_evaluating="y"
-		match="^BankDeleteUser (\w+).*$"
-		group="BankAlias"
-		script="BankAliasBankDeleteUser"
-		sequence="100"
-	>
-	</alias>
-	<alias
-		enabled="y"
-		ignore_case="y"
-		regexp="y"
-		keep_evaluating="y"
-		match="^ChangeUser (\w+)$"
-		group="BankAlias"
-		script="BankAliasBankSetUser"
-		sequence="100"
-	>
-	</alias>
-	<alias
-		enabled="y"
-		ignore_case="y"
-		regexp="y"
-		keep_evaluating="y"
-		match="^BankCopy (\w+)"
-		group="BankAlias"
-		script="BankAliasBankCopy"
-		sequence="100"
-	>
-	</alias>
-	<alias
-		enabled="y"
-		ignore_case="y"
-		regexp="y"
-		keep_evaluating="y"
-		match="^BankPaste (\w+)$"
-		group="BankAlias"
-		script="BankAliasBankPaste"
-		sequence="100"
-	>
-	</alias>
+	<alias enabled="y" regexp="y" ignore_case="y" match="^banks?$" group="BankAlias" script="BankAliasBankPrintAllInfo" sequence="100"></alias>
+	<alias enabled="y" regexp="y" ignore_case="y" match="banks?reset" group="BankAlias" script="BankAliasBankDeleteBalances" sequence="100"></alias>
+	<alias enabled="y" regexp="y" ignore_case="y" match="^deposithalf$" group="BankAlias" script="BankAliasPurseDepositHalfMoney" sequence="100"></alias>
+	<alias enabled="y" ignore_case="y" regexp="y" keep_evaluating="y" match="^BankUsers?$" group="BankAlias" script="BankAliasBankChangeUser" sequence="100"></alias>
+	<alias enabled="y" ignore_case="y" regexp="y" keep_evaluating="y" match="^BankUsers? (\w+).*$" group="BankAlias" script="BankAliasBankSetUser" sequence="100"></alias>
+	<alias enabled="y" ignore_case="y" regexp="y" keep_evaluating="y" match="^BankDeleteUser (\w+).*$" group="BankAlias" script="BankAliasBankDeleteUser" sequence="100"></alias>
+	<alias enabled="y" ignore_case="y" regexp="y" keep_evaluating="y" match="^ChangeUser (\w+)$" group="BankAlias" script="BankAliasBankSetUser" sequence="100"></alias>
+	<alias enabled="y" ignore_case="y" regexp="y" keep_evaluating="y" match="^BankCopy (\w+)" group="BankAlias" script="BankAliasBankCopy" sequence="100"></alias>
+	<alias enabled="y" ignore_case="y" regexp="y" keep_evaluating="y" match="^BankPaste (\w+)$" group="BankAlias" script="BankAliasBankPaste" sequence="100"></alias>
 </aliases>
 
 <!--  Timers  -->
