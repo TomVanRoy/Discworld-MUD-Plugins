@@ -10,10 +10,10 @@
    language="Lua"
    purpose="Vault Tracker"
    date_written="2022-05-27"
-   date_modified="2024-06-30"
+   date_modified="2024-07-22"
    save_state="y"
    requires="5.06"
-   version="1.3"
+   version="1.31"
    >
 <description trim="y">
 <![CDATA[
@@ -1285,17 +1285,23 @@ function VaultConvertContentStringToArray(s)
 		end
 
 		-- quantify non-numeric quantifiers
-		s = string.gsub(s, ", some ", ";, 1*")
-		s = string.gsub(s, ", the ", ";, 1*")
-		s = string.gsub(s, ", an ", ";, 1*")
-		s = string.gsub(s, ", a ", ";, 1*")
-		s = string.gsub(s, ", many ", ";, 20*")
-		s = string.gsub(s, ", various ", ";, 1*")
+		s = string.gsub(s, ", some ", ", 20 ")
+		s = string.gsub(s, ", the ", ", 1 ")
+		s = string.gsub(s, ", an ", ", 1 ")
+		s = string.gsub(s, ", a ", ", 1 ")
+		s = string.gsub(s, ", many ", ", 20 ")
+		s = string.gsub(s, ", various ", ", 1 ")
 
-		-- prepare string to be split
+		-- replace word numbers into numerals (eg: seven --> 7)
 		for key, value in pairs(numberWords) do
-			s = string.gsub(s, ", " .. key .. " ", ";, " .. value .. "*")
+			s = string.gsub(s, ", " .. key .. " ", ", " .. value .. " ")
 		end
+
+		-- add '*' between numerals and items
+		s = string.gsub(s, "(%d+) (%a)", "%1*%2")
+
+		-- prepare string to be split into table
+		s = string.gsub(s, ", (%d+%*)", ";, %1")
 
 		-- unprepare items with a comma
 		for _, value in ipairs(itemsWithComma) do
@@ -1303,10 +1309,14 @@ function VaultConvertContentStringToArray(s)
 			s = string.gsub(s, seatchString, value)
 		end
 
+		-- remove first ';,' occurence from start of string
 		s = string.gsub(s, "^;, ", "", 1)
-		local contentTable = string.toTable(s, ";,")
-		local contentArray = {}
 
+		-- split content string to table
+		local contentTable = string.toTable(s, ";,")
+
+		-- loop through content table and create array with singular form of items
+		local contentArray = {}
 		for i = 1, #contentTable, 1 do
 			contentTable[i] = string.trim(contentTable[i])
 			local fooTable = string.toTable(contentTable[i],"*")
@@ -1491,11 +1501,6 @@ function VaultTriggerContainerContents(name, output, wildcards)
 	local vaultFullState = wildcards[3]
 	local vaultContentsString = wildcards[5]
 	VaultContainerContents(vaultContentsString, vaultFullState)
-end
-
-function VaultTriggerSetInsideVault(name, output, wildcards)
-	local locationName = wildcards[1]
-	VaultSetInsideVault(locationName)
 end
 
 -- ALIAS
